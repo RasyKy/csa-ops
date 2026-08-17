@@ -1,3 +1,8 @@
+# CSA-OPS
+
+A custom-built SIEM with automated response and AI-assisted triage, tested
+against self-authored attack scenarios.
+
 ## Purpose and Ethical Use
 
 CSA-OPS is a defense-focused project. The attack scripts included here are 
@@ -14,3 +19,15 @@ to test is illegal.
 
 This project was built as a hands-on learning exercise in detection 
 engineering, not as a production security tool.
+
+## Setup
+
+TODO
+
+## Architecture
+
+TODO
+
+## Team
+
+TODO
