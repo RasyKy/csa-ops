@@ -20,6 +20,11 @@ to test is illegal.
 This project was built as a hands-on learning exercise in detection 
 engineering, not as a production security tool.
 
+The authors assume no responsibility for misuse of this code by others. This 
+project is provided for authorized security research and educational purposes 
+only; users are solely responsible for ensuring their use complies with 
+applicable laws.
+
 ## Setup
 
 TODO
