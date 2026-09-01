@@ -5,7 +5,7 @@ from kafka import KafkaConsumer
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 
-from schema import NormalizedEvent
+from .schema import NormalizedEvent
 
 KAFKA_BROKER = "localhost:9092"
 KAFKA_TOPIC = "raw-events"
@@ -80,7 +80,6 @@ def normalize(raw):
         "time": raw.get("@timestamp"),
         "host": raw.get("host", {}).get("name"),
         "event_code": event_code,
-        "event_type": winlog.get("task"),
     }
 
     for common_field, raw_field in EVENT_FIELD_MAPS.get(event_code, {}).items():
