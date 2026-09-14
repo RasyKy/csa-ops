@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "live: exercises real OS state (processes, firewall, filesystem). Requires CSA_OPS_LIVE_TESTS=1, an elevated Windows process, and a disposable/snapshotted VM -- see CLAUDE.md Phase 4. Skipped by default.",
+]

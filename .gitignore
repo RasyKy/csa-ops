@@ -26,6 +26,9 @@ yarn-error.log*
 # Docker
 docker-volumes/
 
+# Local runtime state (kill switch, etc.)
+data/
+
 # Editor / OS
 .vscode/
 .idea/
