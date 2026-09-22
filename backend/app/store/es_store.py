@@ -15,6 +15,19 @@ TRIAGE_INDEX = "incident_triage"
 RESPONSE_ACTIONS_INDEX = "response_actions"
 INTAKE_STATE_INDEX = "intake_state"
 INTAKE_STATE_DOC_ID = "watcher"
+LOGS_NORMALIZED_INDEX = "logs-normalized"  # ingestion's index; B only ever reads it, for pipeline health
+
+# Metrics page: per-index timestamp field, for index_health()'s "latest
+# document" aggregation. logs-normalized's field name is per
+# engine/normalizer/schema.py's NormalizedEvent (CLAUDE.md 1a) -- B reads
+# this read-only, the same established pattern as reading A's alerts/incidents.
+_TIMESTAMP_FIELDS = {
+    ALERTS_INDEX: "timestamp",
+    INCIDENTS_INDEX: "incident_raised_time",
+    TRIAGE_INDEX: "triage_time",
+    RESPONSE_ACTIONS_INDEX: "command_issued_time",
+    LOGS_NORMALIZED_INDEX: "timestamp",
+}
 
 
 class ESStore:
@@ -55,6 +68,24 @@ class ESStore:
                 return []
             raise
         return [hit["_source"] for hit in res["hits"]["hits"]]
+
+    def _count(self, *, index, query) -> int:
+        try:
+            res = self._es.count(index=index, query=query)
+        except Exception as exc:
+            if _is_index_not_found(exc):
+                return 0
+            raise
+        return res["count"]
+
+    def _agg_search(self, *, index, query, aggs) -> Optional[dict]:
+        try:
+            res = self._es.search(index=index, query=query, size=0, aggs=aggs)
+        except Exception as exc:
+            if _is_index_not_found(exc):
+                return None
+            raise
+        return res["aggregations"]
 
     def list_alerts(self, *, severity=None, host=None, limit=50, since=None) -> list[dict]:
         query = _filter_query(severity=severity, host=host, since=since, since_field="timestamp")
@@ -131,6 +162,80 @@ class ESStore:
 
     def save_intake_state(self, state: dict) -> None:
         self._es.index(index=INTAKE_STATE_INDEX, id=INTAKE_STATE_DOC_ID, document=state)
+
+    # --- Metrics page ---
+
+    def count_alerts(self, *, since=None, severity=None) -> int:
+        query = _filter_query(severity=severity, since=since, since_field="timestamp")
+        return self._count(index=ALERTS_INDEX, query=query)
+
+    def count_incidents(self, *, since=None, severity=None) -> int:
+        query = _filter_query(severity=severity, since=since, since_field="incident_raised_time")
+        return self._count(index=INCIDENTS_INDEX, query=query)
+
+    def alerts_timeseries(self, *, since, interval: str) -> list[dict]:
+        query = _filter_query(since=since, since_field="timestamp")
+        calendar_interval = "hour" if interval == "hour" else "day"
+        aggs = {
+            "by_time": {
+                "date_histogram": {"field": "timestamp", "calendar_interval": calendar_interval},
+                "aggs": {"by_severity": {"terms": {"field": "severity.keyword", "size": 10}}},
+            }
+        }
+        aggregations = self._agg_search(index=ALERTS_INDEX, query=query, aggs=aggs)
+        if aggregations is None:
+            return []
+        return [
+            {
+                "bucket": bucket["key_as_string"],
+                "severity_counts": {s["key"]: s["doc_count"] for s in bucket["by_severity"]["buckets"]},
+            }
+            for bucket in aggregations["by_time"]["buckets"]
+        ]
+
+    def alerts_top_terms(self, field: str, *, since=None, size: int = 5) -> list[dict]:
+        query = _filter_query(since=since, since_field="timestamp")
+        aggs = {"top": {"terms": {"field": f"{field}.keyword", "size": size}}}
+        aggregations = self._agg_search(index=ALERTS_INDEX, query=query, aggs=aggs)
+        if aggregations is None:
+            return []
+        return [{"key": b["key"], "count": b["doc_count"]} for b in aggregations["top"]["buckets"]]
+
+    def alerts_by_technique_tactic(self, *, since=None) -> list[dict]:
+        query = _filter_query(since=since, since_field="timestamp")
+        aggs = {
+            "by_pair": {
+                "multi_terms": {
+                    "terms": [{"field": "technique.keyword"}, {"field": "tactic.keyword"}],
+                    "size": 200,
+                }
+            }
+        }
+        aggregations = self._agg_search(index=ALERTS_INDEX, query=query, aggs=aggs)
+        if aggregations is None:
+            return []
+        result = []
+        for bucket in aggregations["by_pair"]["buckets"]:
+            technique, tactic = bucket["key"]
+            result.append({"technique": technique, "tactic": tactic, "count": bucket["doc_count"]})
+        return result
+
+    def list_all_triage(self, *, since=None) -> list[dict]:
+        query = _filter_query(since=since, since_field="triage_time")
+        return self._search(index=TRIAGE_INDEX, query=query, size=1000, sort=[{"triage_time": "desc"}])
+
+    def index_health(self, index_name: str) -> Optional[dict]:
+        ts_field = _TIMESTAMP_FIELDS.get(index_name)
+        if ts_field is None:
+            return None
+        count = self._count(index=index_name, query={"match_all": {}})
+        if count == 0:
+            return {"count": 0, "latest_timestamp": None}
+        aggregations = self._agg_search(
+            index=index_name, query={"match_all": {}}, aggs={"latest": {"max": {"field": ts_field}}}
+        )
+        latest = aggregations["latest"]["value_as_string"] if aggregations else None
+        return {"count": count, "latest_timestamp": latest}
 
 
 def _is_index_not_found(exc: Exception) -> bool:

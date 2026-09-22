@@ -41,6 +41,34 @@ def test_openai_compatible_provider_uses_base_url_override(monkeypatch):
     assert result.verdict == "true_positive"
 
 
+def test_anthropic_provider_sends_a_generous_max_tokens(monkeypatch):
+    # Regression: max_tokens was hardcoded to 1024, shared between triage's
+    # tiny schema and explain's much larger one (summary, objective,
+    # notable_details[], next_steps[], caveats[]) -- risking silent
+    # truncation into invalid JSON for a verbose explain response. No test
+    # exercised the Anthropic path at all before this.
+    captured = {}
+
+    def fake_post(url, *, headers, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        return _fake_response({
+            "content": [{"type": "text", "text": '{"verdict": "true_positive", "confidence": "high", "reason": "clear"}'}],
+        })
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("LLM_MODEL", "claude-sonnet")
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+
+    result = llm_client.complete("system prompt", "user prompt", TriageVerdict)
+
+    assert captured["url"] == "https://api.anthropic.com/v1/messages"
+    assert captured["json"]["max_tokens"] >= 4096
+    assert result.verdict == "true_positive"
+
+
 def test_openai_provider_defaults_to_real_openai_base_url(monkeypatch):
     captured = {}
 

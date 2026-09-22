@@ -37,6 +37,8 @@ def post_explain(
     triage = store.get_triage(incident_id)
     if triage is None:
         raise HTTPException(status_code=409, detail="incident has not been triaged yet")
+    if triage.get("status") != "ok":
+        raise HTTPException(status_code=409, detail="triage failed; nothing to explain")
 
     if triage.get("explain"):
         return triage  # cached on the triage doc -- no repeat LLM call

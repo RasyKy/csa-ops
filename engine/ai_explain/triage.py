@@ -21,9 +21,9 @@ def _model_label() -> str:
 def triage_incident(incident: dict, *, store=None) -> IncidentTriage:
     """`store` is optional (and untyped, to keep this module decoupled from
     backend.app.store -- see rule 5) so existing direct-call unit tests keep
-    working. The watcher's real call site always passes it: rule 12 requires
-    checking incident_triage for an existing record before re-running the
-    LLM, rather than relying solely on the watcher's shared processed-set.
+    working. The watcher's real call site always passes it, to check
+    incident_triage for an existing record before re-running the LLM,
+    rather than relying solely on the watcher's shared processed-set.
     """
     incident_id = incident["incident_id"]
 
@@ -33,6 +33,7 @@ def triage_incident(incident: dict, *, store=None) -> IncidentTriage:
             logger.info("incident %s already has a triage record; skipping re-triage", incident_id)
             return IncidentTriage(**existing)
 
+    started = _now()
     model_label = _model_label()
 
     try:
@@ -44,12 +45,14 @@ def triage_incident(incident: dict, *, store=None) -> IncidentTriage:
     except Exception:
         logger.exception("triage failed for incident %s", incident_id)
         return IncidentTriage(
-            incident_id=incident_id, triage_time=_now(), model=model_label, status="failed",
+            incident_id=incident_id, triage_time=_now(), triage_started_time=started,
+            model=model_label, status="failed",
         )
 
     return IncidentTriage(
         incident_id=incident_id,
         triage_time=_now(),
+        triage_started_time=started,
         verdict=verdict.verdict,
         confidence=verdict.confidence,
         reason=verdict.reason,

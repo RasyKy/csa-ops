@@ -30,7 +30,7 @@ export default async function IncidentDetailPage({ params }: { params: { id: str
 
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <a href="/" className="text-sm text-slate-500 hover:underline">
+      <a href="/incidents" className="text-sm text-slate-500 hover:underline">
         &larr; Incidents
       </a>
       <div className="mt-2 flex items-center gap-3">

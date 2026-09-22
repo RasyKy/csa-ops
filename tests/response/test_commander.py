@@ -95,7 +95,7 @@ def test_handle_incident_is_idempotent_on_existing_response_action(store, settin
     # Regression: clearing intake_state to re-test triage re-fired the
     # commander too, issuing a duplicate isolate_host for an incident that
     # already had one. The watcher's processed-set is not the only guard --
-    # commander.handle_incident must check its own store first (rule 12).
+    # commander.handle_incident must check its own store first.
     incident = store.get_incident("inc-0003")
 
     first = commander.handle_incident(incident, store=store, settings=settings)
@@ -125,6 +125,33 @@ def test_handle_incident_idempotency_guard_also_covers_kill_switch_blocked_docs(
     assert first["status"] == second["status"] == "blocked_by_kill_switch"
     assert first["action_id"] == second["action_id"]
     assert len(store.list_response_actions("inc-0003")) == 1
+
+
+def test_handle_incident_does_not_treat_a_prior_manual_action_as_already_handled(store, settings):
+    # Regression: the idempotency guard above must only recognize the
+    # automatic path's own prior decisions. An analyst issuing a manual
+    # action first (e.g. before the watcher's next poll, or with
+    # INTAKE_ENABLED=false) must not silently suppress the policy-mandated
+    # automatic response -- the two paths are independent by design.
+    incident = store.get_incident("inc-0003")  # policy: kill_process
+
+    manual = commander.issue_manual_action(
+        store=store, settings=settings, incident=incident, action="log", target={},
+    )
+    assert manual["decided_by"]["policy_rule"] == "manual"
+
+    automatic = commander.handle_incident(incident, store=store, settings=settings)
+
+    assert automatic is not None
+    assert automatic["action"] == "kill_process"
+    assert automatic["action_id"] != manual["action_id"]
+    assert len(store.list_response_actions("inc-0003")) == 2
+
+    # A second automatic pass must now be a no-op against its own record,
+    # not the manual one and not a third dispatch.
+    second_automatic = commander.handle_incident(incident, store=store, settings=settings)
+    assert second_automatic["action_id"] == automatic["action_id"]
+    assert len(store.list_response_actions("inc-0003")) == 2
 
 
 def test_manual_path_still_subject_to_mode(store, settings):

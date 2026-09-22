@@ -6,7 +6,7 @@ HEADERS = {"X-API-Key": DASHBOARD_KEY}
 def test_list_alerts_returns_all_fixtures(client):
     r = client.get("/alerts", headers=HEADERS)
     assert r.status_code == 200
-    assert len(r.json()) == 7
+    assert len(r.json()) == 8
 
 
 def test_list_alerts_filters_by_severity(client):

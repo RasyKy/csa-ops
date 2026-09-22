@@ -6,6 +6,9 @@ elasticsearch), so this script runs unchanged in either environment.
 MTTD (attack_action_time -> alert) is Person A's join with Person C's
 attack_action_time, not B's. This script's shape (compute rows, write CSV,
 print grouped summary) is meant to be extended for that, not duplicated.
+The mean/median/p90 math itself lives in backend/metrics/calc.py
+(compute_duration_stats), shared with the metrics page's MTTR widgets so
+there's exactly one implementation of "duration between two timestamps".
 
 Usage:
     python scripts/mttr_report.py [output.csv]
@@ -19,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backend.app.config import get_settings  # noqa: E402
 from backend.app.store import build_store  # noqa: E402
+from backend.metrics.calc import compute_duration_stats  # noqa: E402
 
 FIELDNAMES = [
     "incident_id", "matched_scenario", "severity", "action_id", "action", "mode",
@@ -84,17 +88,22 @@ def print_summary(rows: list[dict]) -> None:
         scenario = row["matched_scenario"] or "(none)"
         print(f"{row['incident_id']:<12} {scenario:<24} {row['severity']:<9} {row['mttr_seconds']:>12.3f}")
 
-    overall_mean = sum(r["mttr_seconds"] for r in rows) / len(rows)
-    print(f"\nOverall mean MTTR: {overall_mean:.3f}s across {len(rows)} response action(s)")
+    overall_stats = compute_duration_stats(
+        [(r["incident_raised_time"], r["response_executed_time"]) for r in rows]
+    )
+    print(f"\nOverall mean MTTR: {overall_stats['mean']:.3f}s across {len(rows)} response action(s)")
 
-    by_scenario: dict[str, list[float]] = {}
+    by_scenario: dict[str, list[dict]] = {}
     for row in rows:
         key = row["matched_scenario"] or "(none)"
-        by_scenario.setdefault(key, []).append(row["mttr_seconds"])
+        by_scenario.setdefault(key, []).append(row)
 
     print("\nMean MTTR by scenario:")
-    for scenario, values in sorted(by_scenario.items()):
-        print(f"  {scenario:<24} mean={sum(values) / len(values):.3f}s  n={len(values)}")
+    for scenario, scenario_rows in sorted(by_scenario.items()):
+        stats = compute_duration_stats(
+            [(r["incident_raised_time"], r["response_executed_time"]) for r in scenario_rows]
+        )
+        print(f"  {scenario:<24} mean={stats['mean']:.3f}s  n={stats['count']}")
 
 
 def main() -> None:

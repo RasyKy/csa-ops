@@ -34,6 +34,7 @@ class IncidentTriage(BaseModel):
 
     incident_id: str
     triage_time: str
+    triage_started_time: Optional[str] = None
     verdict: Optional[Verdict] = None
     confidence: Optional[Confidence] = None
     reason: Optional[str] = None

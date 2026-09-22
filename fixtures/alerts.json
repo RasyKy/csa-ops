@@ -29,7 +29,8 @@
     "pid": 3100,
     "ppid": 800,
     "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    "command_line": "powershell.exe -nop -w hidden -enc SQBFAFgA...=="
+    "command_line": "powershell.exe -nop -w hidden -enc SQBFAFgA...==",
+    "false_positive": false
   },
   {
     "alert_id": "alert-0002b",
@@ -61,7 +62,8 @@
     "pid": 1280,
     "ppid": 900,
     "image": "C:\\Windows\\System32\\cmd.exe",
-    "command_line": "cmd.exe /c powershell.exe -nop -w hidden -enc SQBFAFgA...=="
+    "command_line": "cmd.exe /c powershell.exe -nop -w hidden -enc SQBFAFgA...==",
+    "false_positive": true
   },
   {
     "alert_id": "alert-0003b",
@@ -93,7 +95,8 @@
     "pid": 6001,
     "ppid": 500,
     "image": "C:\\Windows\\System32\\wbem\\WMIC.exe",
-    "command_line": "wmic /node:10.0.0.20 process call create \"cmd.exe /c whoami\""
+    "command_line": "wmic /node:10.0.0.20 process call create \"cmd.exe /c whoami\"",
+    "false_positive": false
   },
   {
     "alert_id": "alert-0004b",
@@ -110,5 +113,22 @@
     "ppid": 500,
     "image": "C:\\Windows\\System32\\wbem\\WMIC.exe",
     "command_line": "wmic /node:10.0.0.21 process call create \"cmd.exe /c whoami\""
+  },
+  {
+    "alert_id": "alert-0005",
+    "timestamp": "2026-08-01T08:00:00.000Z",
+    "rule_id": "T1046_port_scan",
+    "rule_title": "Internal Network Port Scan",
+    "technique": "T1046",
+    "tactic": "discovery",
+    "severity": "low",
+    "host": "WS05",
+    "user": "CORP\\frank",
+    "event_id": "evt-0005-1",
+    "pid": 7100,
+    "ppid": 700,
+    "image": "C:\\Windows\\System32\\cmd.exe",
+    "command_line": "cmd.exe /c for /L %i in (1,1,254) do ping -n 1 10.0.0.%i",
+    "false_positive": true
   }
 ]

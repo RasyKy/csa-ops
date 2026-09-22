@@ -58,6 +58,27 @@ def test_post_explain_409_when_not_yet_triaged(client):
     assert r.status_code == 409
 
 
+def test_post_explain_409_when_triage_failed(client, monkeypatch):
+    # Regression: only the dashboard UI gated the Explain button on
+    # triage.status == "ok"; the endpoint itself did not, so a direct API
+    # call against a failed triage (verdict/confidence/reason all null)
+    # would proceed to call the LLM and persist a fabricated explanation.
+    store = client.app.state.store
+    store.save_triage({
+        "incident_id": "inc-0003", "triage_time": "2026-09-13T10:16:00.000Z",
+        "verdict": None, "confidence": None, "reason": None,
+        "model": "openai/deepseek-chat", "status": "failed", "explain": None,
+    })
+
+    def fail_if_called(incident, triage):
+        raise AssertionError("explain_incident must not be called when triage failed")
+
+    monkeypatch.setattr(ai_router.ai_explain, "explain_incident", fail_if_called)
+
+    r = client.post("/ai/explain/inc-0003", headers=DASH)
+    assert r.status_code == 409
+
+
 def test_post_explain_calls_explain_incident_and_persists_result(client, monkeypatch):
     _save_ok_triage(client)
 
