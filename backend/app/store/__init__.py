@@ -16,6 +16,7 @@ def build_store(settings: Settings):
             fixtures_dir=settings.fixtures_dir,
             intake_state_path=settings.intake_state_path,
             response_actions_path=settings.response_actions_path,
+            incident_triage_path=settings.incident_triage_path,
         )
     if settings.store_backend == "elasticsearch":
         try:

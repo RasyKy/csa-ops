@@ -10,11 +10,11 @@ class FixtureStore:
         fixtures_dir: str = "fixtures",
         intake_state_path: str = "./data/intake_state.json",
         response_actions_path: str = "./data/response_actions.json",
+        incident_triage_path: str = "./data/incident_triage.json",
     ):
         fixtures_dir = Path(fixtures_dir)
         self._alerts: list[dict] = json.loads((fixtures_dir / "alerts.json").read_text())
         self._incidents: list[dict] = json.loads((fixtures_dir / "incidents.json").read_text())
-        self._triage: dict[str, dict] = {}
         self._intake_state_path = Path(intake_state_path)
 
         self._response_actions_path = Path(response_actions_path)
@@ -22,6 +22,12 @@ class FixtureStore:
             self._response_actions: list[dict] = json.loads(self._response_actions_path.read_text())
         else:
             self._response_actions = []
+
+        self._incident_triage_path = Path(incident_triage_path)
+        if self._incident_triage_path.exists():
+            self._triage: dict[str, dict] = json.loads(self._incident_triage_path.read_text())
+        else:
+            self._triage = {}
 
     def list_alerts(self, *, severity=None, host=None, limit=50, since=None):
         items = _filtered(self._alerts, severity=severity, host=host, since=since, since_field="timestamp")
@@ -44,6 +50,10 @@ class FixtureStore:
 
     def get_triage(self, incident_id: str) -> Optional[dict]:
         return self._triage.get(incident_id)
+
+    def save_triage(self, triage: dict) -> None:
+        self._triage[triage["incident_id"]] = triage
+        self._persist_triage()
 
     def list_response_actions(self, incident_id: str) -> list[dict]:
         return [a for a in self._response_actions if a["incident_id"] == incident_id]
@@ -76,6 +86,10 @@ class FixtureStore:
     def _persist_response_actions(self) -> None:
         self._response_actions_path.parent.mkdir(parents=True, exist_ok=True)
         self._response_actions_path.write_text(json.dumps(self._response_actions))
+
+    def _persist_triage(self) -> None:
+        self._incident_triage_path.parent.mkdir(parents=True, exist_ok=True)
+        self._incident_triage_path.write_text(json.dumps(self._triage))
 
     def get_intake_state(self) -> dict:
         if self._intake_state_path.exists():

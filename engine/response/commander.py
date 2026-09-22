@@ -15,7 +15,24 @@ def _now() -> str:
 
 
 def handle_incident(incident: dict, *, store, settings) -> Optional[dict]:
-    """Registered with the intake watcher. Fixed safety order: kill switch, mode, decision (rule 3.1)."""
+    """Registered with the intake watcher. Fixed safety order: kill switch, mode, decision (rule 3.1).
+
+    Idempotency guard runs first, ahead of that order: the watcher's shared
+    processed-set is not the only defense against re-acting on an incident
+    (rule 12). A processed-set reset (e.g. clearing intake_state to re-test
+    triage) must not cause a second automatic action -- including a second
+    blocked_by_kill_switch doc -- for an incident already handled.
+    """
+    incident_id = incident["incident_id"]
+    existing = store.list_response_actions(incident_id)
+    if existing:
+        logger.info(
+            "incident %s already has a response_actions record (action_id=%s); "
+            "skipping automatic re-dispatch",
+            incident_id, existing[-1].get("action_id"),
+        )
+        return existing[-1]
+
     host = incident["host"]
     kill_switch = KillSwitch(settings.kill_switch_path)
 

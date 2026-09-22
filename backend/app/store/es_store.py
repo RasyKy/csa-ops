@@ -70,6 +70,9 @@ class ESStore:
         except Exception:
             return None
 
+    def save_triage(self, triage: dict) -> None:
+        self._es.index(index=TRIAGE_INDEX, id=triage["incident_id"], document=triage)
+
     def list_response_actions(self, incident_id: str) -> list[dict]:
         query = {"term": {"incident_id": incident_id}}
         res = self._es.search(

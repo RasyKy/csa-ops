@@ -9,8 +9,9 @@ def test_list_incidents_returns_all_fixtures_joined(client):
     data = r.json()
     assert len(data) == 4
     for item in data:
-        # No triage or response engine yet (Phase 3/5) -- must be null, not absent.
+        # No triage yet on a fresh store -- must be null, not absent.
         assert item["triage_verdict"] is None
+        assert item["triage_status"] is None
         assert item["last_response_action"] is None
 
 

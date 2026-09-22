@@ -84,16 +84,17 @@ export interface Explain {
 export interface IncidentTriage {
   incident_id: string;
   triage_time: string;
-  verdict: string;
-  confidence: string;
-  reason: string;
+  verdict: string | null;
+  confidence: string | null;
+  reason: string | null;
   model: string;
-  status: string;
+  status: "ok" | "failed";
   explain: Explain | null;
 }
 
 export interface IncidentListItem extends Incident {
   triage_verdict: string | null;
+  triage_status: "ok" | "failed" | null;
   last_response_action: ResponseAction | null;
 }
 

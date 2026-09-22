@@ -52,7 +52,7 @@ export default async function IncidentDetailPage({ params }: { params: { id: str
 
       <section className="mt-6 grid gap-6 sm:grid-cols-3">
         <TriagePanel triage={incident.triage} />
-        <ExplainPanel triage={incident.triage} />
+        <ExplainPanel incidentId={incident.incident_id} triage={incident.triage} />
         <ResponseHistoryPanel history={incident.response_history} />
       </section>
     </main>

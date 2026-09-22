@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Filters } from "@/components/Filters";
 import { SeverityBadge } from "@/components/SeverityBadge";
+import { TriageBadge } from "@/components/TriageBadge";
 import type { IncidentListItem, Severity } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 3000;
@@ -63,7 +64,9 @@ export function IncidentsView() {
               <td className="py-2 pr-4">{incident.user}</td>
               <td className="py-2 pr-4">{incident.matched_scenario ?? "—"}</td>
               <td className="py-2 pr-4">{incident.incident_raised_time}</td>
-              <td className="py-2 pr-4">{incident.triage_verdict ?? "pending"}</td>
+              <td className="py-2 pr-4">
+                <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} />
+              </td>
               <td className="py-2 pr-4">{incident.last_response_action?.action ?? "none"}</td>
               <td className="py-2 pr-4">
                 <Link className="text-blue-600 hover:underline" href={`/incidents/${incident.incident_id}`}>

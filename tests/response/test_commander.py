@@ -19,6 +19,7 @@ def store(tmp_path):
         fixtures_dir="fixtures",
         intake_state_path=tmp_path / "intake_state.json",
         response_actions_path=tmp_path / "response_actions.json",
+        incident_triage_path=tmp_path / "incident_triage.json",
     )
 
 
@@ -88,6 +89,42 @@ def test_manual_path_still_subject_to_kill_switch(store, settings):
         store=store, settings=settings, incident=incident, action="unisolate_host", target={},
     )
     assert doc["status"] == "blocked_by_kill_switch"
+
+
+def test_handle_incident_is_idempotent_on_existing_response_action(store, settings, monkeypatch):
+    # Regression: clearing intake_state to re-test triage re-fired the
+    # commander too, issuing a duplicate isolate_host for an incident that
+    # already had one. The watcher's processed-set is not the only guard --
+    # commander.handle_incident must check its own store first (rule 12).
+    incident = store.get_incident("inc-0003")
+
+    first = commander.handle_incident(incident, store=store, settings=settings)
+    assert first["status"] == "issued"
+
+    def fake_decide(*args, **kwargs):
+        raise AssertionError("decide() must not run again for an incident that already has a response_actions doc")
+
+    monkeypatch.setattr(commander.decision_module, "decide", fake_decide)
+
+    second = commander.handle_incident(incident, store=store, settings=settings)
+
+    assert second["action_id"] == first["action_id"]
+    assert store.list_response_actions("inc-0003") == [first]
+
+
+def test_handle_incident_idempotency_guard_also_covers_kill_switch_blocked_docs(store, settings):
+    # A blocked_by_kill_switch doc is still a response_actions record --
+    # re-processing while the kill switch is still on must not append a
+    # second one either.
+    KillSwitch(settings.kill_switch_path).set()
+    incident = store.get_incident("inc-0003")
+
+    first = commander.handle_incident(incident, store=store, settings=settings)
+    second = commander.handle_incident(incident, store=store, settings=settings)
+
+    assert first["status"] == second["status"] == "blocked_by_kill_switch"
+    assert first["action_id"] == second["action_id"]
+    assert len(store.list_response_actions("inc-0003")) == 1
 
 
 def test_manual_path_still_subject_to_mode(store, settings):

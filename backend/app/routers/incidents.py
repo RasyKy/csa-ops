@@ -19,6 +19,7 @@ def _joined(store, incident: dict) -> dict:
     return {
         **model.model_dump(by_alias=True),
         "triage_verdict": triage["verdict"] if triage else None,
+        "triage_status": triage["status"] if triage else None,
         "last_response_action": last_action,
     }
 
