@@ -1,0 +1,222 @@
+[
+  {
+    "incident_id": "inc-0001",
+    "incident_raised_time": "2026-09-10T09:12:05.000Z",
+    "host": "WS03",
+    "user": "CORP\\dave",
+    "severity": "low",
+    "risk_score": 5,
+    "matched_scenario": null,
+    "techniques": ["T1012"],
+    "tactics": ["discovery"],
+    "alert_ids": ["alert-0001"],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-0001-1",
+          "pid": 2200,
+          "ppid": 900,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe /c reg.exe query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "timestamp": "2026-09-10T09:12:03.900Z",
+          "technique": null,
+          "rule_id": null
+        },
+        {
+          "event_id": "evt-0001-2",
+          "pid": 2288,
+          "ppid": 2200,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": "reg.exe query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "timestamp": "2026-09-10T09:12:04.500Z",
+          "technique": "T1012",
+          "rule_id": "T1012_registry_query"
+        },
+        {
+          "event_id": "evt-0001-3",
+          "pid": 2288,
+          "ppid": 2200,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": null,
+          "timestamp": "2026-09-10T09:12:04.700Z",
+          "technique": null,
+          "rule_id": null
+        }
+      ],
+      "edges": [
+        {"from": "evt-0001-1", "to": "evt-0001-2", "relation": "parent"},
+        {"from": "evt-0001-2", "to": "evt-0001-3", "relation": "file"}
+      ]
+    },
+    "targets": {
+      "pids": [2288],
+      "remote_ips": [],
+      "file_paths": ["C:\\Users\\dave\\AppData\\Local\\Temp\\reg_output.txt"]
+    }
+  },
+  {
+    "incident_id": "inc-0002",
+    "incident_raised_time": "2026-09-11T14:02:13.400Z",
+    "host": "WS02",
+    "user": "CORP\\bob",
+    "severity": "medium",
+    "risk_score": 14,
+    "matched_scenario": "malware_drop_chain",
+    "techniques": ["T1059.001", "T1105"],
+    "tactics": ["execution", "command_and_control"],
+    "alert_ids": ["alert-0002a", "alert-0002b"],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-0002-1",
+          "pid": 3100,
+          "ppid": 800,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": "powershell.exe -nop -w hidden -enc SQBFAFgA...==",
+          "timestamp": "2026-09-11T14:02:10.100Z",
+          "technique": "T1059.001",
+          "rule_id": "T1059.001_encoded_powershell"
+        },
+        {
+          "event_id": "evt-0002-2",
+          "pid": 3100,
+          "ppid": 800,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-09-11T14:02:12.800Z",
+          "technique": "T1105",
+          "rule_id": "T1105_file_drop"
+        },
+        {
+          "event_id": "evt-0002-3",
+          "pid": 3344,
+          "ppid": 3100,
+          "image": "C:\\Users\\bob\\AppData\\Local\\Temp\\update.exe",
+          "command_line": "update.exe",
+          "timestamp": "2026-09-11T14:02:13.100Z",
+          "technique": null,
+          "rule_id": null
+        }
+      ],
+      "edges": [
+        {"from": "evt-0002-1", "to": "evt-0002-2", "relation": "file"},
+        {"from": "evt-0002-1", "to": "evt-0002-3", "relation": "parent"}
+      ]
+    },
+    "targets": {
+      "pids": [3344],
+      "remote_ips": [],
+      "file_paths": ["C:\\Users\\bob\\AppData\\Local\\Temp\\update.exe"]
+    }
+  },
+  {
+    "incident_id": "inc-0003",
+    "incident_raised_time": "2026-09-13T10:15:03.001Z",
+    "host": "WS01",
+    "user": "CORP\\alice",
+    "severity": "high",
+    "risk_score": 27,
+    "matched_scenario": "credential_dump_chain",
+    "techniques": ["T1059.001", "T1003"],
+    "tactics": ["execution", "credential_access"],
+    "alert_ids": ["alert-0003a", "alert-0003b"],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-0003-1",
+          "pid": 1280,
+          "ppid": 900,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe /c powershell.exe -nop -w hidden -enc SQBFAFgA...==",
+          "timestamp": "2026-09-13T10:15:01.200Z",
+          "technique": "T1059.001",
+          "rule_id": "T1059.001_encoded_powershell"
+        },
+        {
+          "event_id": "evt-0003-2",
+          "pid": 4412,
+          "ppid": 1280,
+          "image": "C:\\Windows\\System32\\rundll32.exe",
+          "command_line": "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 624 C:\\Users\\alice\\AppData\\Local\\Temp\\lsass.dmp full",
+          "timestamp": "2026-09-13T10:15:02.123Z",
+          "technique": "T1003",
+          "rule_id": "T1003_lsass_access"
+        },
+        {
+          "event_id": "evt-0003-3",
+          "pid": 4412,
+          "ppid": 1280,
+          "image": "C:\\Windows\\System32\\rundll32.exe",
+          "command_line": null,
+          "timestamp": "2026-09-13T10:15:02.900Z",
+          "technique": null,
+          "rule_id": null
+        }
+      ],
+      "edges": [
+        {"from": "evt-0003-1", "to": "evt-0003-2", "relation": "parent"},
+        {"from": "evt-0003-2", "to": "evt-0003-3", "relation": "network"}
+      ]
+    },
+    "targets": {
+      "pids": [4412],
+      "remote_ips": ["203.0.113.7"],
+      "file_paths": ["C:\\Users\\alice\\AppData\\Local\\Temp\\lsass.dmp"]
+    }
+  },
+  {
+    "incident_id": "inc-0004",
+    "incident_raised_time": "2026-09-12T22:40:06.200Z",
+    "host": "WS04",
+    "user": "CORP\\erin",
+    "severity": "critical",
+    "risk_score": 41,
+    "matched_scenario": "lateral_movement_chain",
+    "techniques": ["T1047", "T1021"],
+    "tactics": ["lateral_movement"],
+    "alert_ids": ["alert-0004a", "alert-0004b"],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-0004-1",
+          "pid": 6001,
+          "ppid": 500,
+          "image": "C:\\Windows\\System32\\wbem\\WMIC.exe",
+          "command_line": "wmic /node:10.0.0.20 process call create \"cmd.exe /c whoami\"",
+          "timestamp": "2026-09-12T22:40:00.000Z",
+          "technique": "T1047",
+          "rule_id": "T1047_wmi_lateral_movement"
+        },
+        {
+          "event_id": "evt-0004-2",
+          "pid": 6001,
+          "ppid": 500,
+          "image": "C:\\Windows\\System32\\wbem\\WMIC.exe",
+          "command_line": null,
+          "timestamp": "2026-09-12T22:40:03.400Z",
+          "technique": null,
+          "rule_id": null
+        },
+        {
+          "event_id": "evt-0004-3",
+          "pid": 6001,
+          "ppid": 500,
+          "image": "C:\\Windows\\System32\\wbem\\WMIC.exe",
+          "command_line": "wmic /node:10.0.0.21 process call create \"cmd.exe /c whoami\"",
+          "timestamp": "2026-09-12T22:40:05.700Z",
+          "technique": "T1021",
+          "rule_id": "T1021_lateral_movement_smb"
+        }
+      ],
+      "edges": [
+        {"from": "evt-0004-1", "to": "evt-0004-2", "relation": "network"},
+        {"from": "evt-0004-2", "to": "evt-0004-3", "relation": "network"}
+      ]
+    },
+    "targets": {
+      "pids": [6001],
+      "remote_ips": ["10.0.0.20", "10.0.0.21"],
+      "file_paths": []
+    }
+  }
+]

@@ -1,0 +1,20 @@
+# Response policy (FR-12). Data, not code -- loaded by decision.py in Phase 3.
+# Evaluate severity default, then scenario override. If matched_scenario is
+# null, the severity default applies.
+
+by_severity:
+  low: log
+  medium: alert
+  high: kill_process
+  critical: isolate_host
+
+by_scenario:
+  credential_dump_chain: kill_process
+  exfiltration_chain: block_address
+  malware_drop_chain: quarantine_file
+  lateral_movement_chain: isolate_host
+
+never_auto:
+  - unisolate_host
+  - restore_file
+  - unblock_address
