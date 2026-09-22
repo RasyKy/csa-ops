@@ -2,10 +2,25 @@
 cluster (or even the elasticsearch package -- see ESStore.__init__'s
 `client` parameter). These verify the query/index/sort shapes ESStore sends
 and how it parses responses. They cannot verify Elasticsearch itself
-behaves as assumed -- that needs the real cluster this environment doesn't
-have, and remains untested until Phase 6 integration.
+matches those queries the way ESStore assumes -- FakeESClient.search()
+ignores `query` entirely and just returns whatever search_hits was seeded
+with. That gap is real: verifying against a real cluster in Phase 6 found
+every bare-field term query here silently matching nothing, because
+Elasticsearch's default dynamic mapping makes string fields "text"
+(analyzed) with a separate ".keyword" sub-field for exact matches -- see
+the ".keyword" suffixes below and in es_store.py.
 """
 from backend.app.store.es_store import ESStore
+
+
+class FakeNotFoundError(Exception):
+    """Stands in for elasticsearch.NotFoundError. ESStore checks exceptions
+    by class name/message (see _is_index_not_found), not isinstance, so a
+    differently-named class with the right __name__ and message is enough
+    to exercise that path without the real elasticsearch package."""
+
+
+FakeNotFoundError.__name__ = "NotFoundError"
 
 
 class FakeESClient:
@@ -17,12 +32,15 @@ class FakeESClient:
         self._docs: dict[tuple[str, str], dict] = {}
         self.search_hits: list[dict] = []
         self.fail_update = False
+        self.missing_indices: set[str] = set()
 
     def seed(self, index: str, doc_id: str, document: dict) -> None:
         self._docs[(index, doc_id)] = dict(document)
 
     def search(self, *, index, query, size, sort=None):
         self.calls.append(("search", {"index": index, "query": query, "size": size, "sort": sort}))
+        if index in self.missing_indices:
+            raise FakeNotFoundError(f"index_not_found_exception, no such index [{index}]")
         return {"hits": {"hits": [{"_source": doc} for doc in self.search_hits]}}
 
     def get(self, *, index, id):
@@ -65,10 +83,41 @@ def test_list_alerts_builds_severity_host_and_since_filter():
     assert call["index"] == "alerts"
     assert call["size"] == 10
     assert call["sort"] == [{"timestamp": "desc"}]
+    # .keyword: real Elasticsearch dynamic mapping makes string fields
+    # "text" (analyzed) plus a ".keyword" exact-match sub-field. A term
+    # query against the bare field name silently matches nothing once a
+    # value tokenizes to more than one term -- caught only by testing
+    # against a real cluster, not this fake client. See es_store.py.
     must = call["query"]["bool"]["must"]
-    assert {"term": {"severity": "high"}} in must
-    assert {"term": {"host": "WS01"}} in must
+    assert {"term": {"severity.keyword": "high"}} in must
+    assert {"term": {"host.keyword": "WS01"}} in must
     assert {"range": {"timestamp": {"gt": "2026-01-01T00:00:00.000Z"}}} in must
+
+
+def test_list_alerts_returns_empty_list_when_index_does_not_exist_yet():
+    # Regression: on a genuinely fresh cluster, before A has ever written an
+    # alert, the "alerts" index doesn't exist. Elasticsearch doesn't
+    # auto-create an index for a read, so this must read as "no alerts",
+    # not a 500 -- found by testing against a real cluster (Phase 6).
+    fake = FakeESClient()
+    fake.missing_indices.add("alerts")
+    assert _store(fake).list_alerts() == []
+
+
+def test_list_incidents_returns_empty_list_when_index_does_not_exist_yet():
+    fake = FakeESClient()
+    fake.missing_indices.add("incidents")
+    assert _store(fake).list_incidents() == []
+
+
+def test_list_response_actions_returns_empty_list_when_index_does_not_exist_yet():
+    # Same gap on B's own index: before the very first response action is
+    # ever issued, response_actions doesn't exist yet either.
+    fake = FakeESClient()
+    fake.missing_indices.add("response_actions")
+    assert _store(fake).list_response_actions("inc-1") == []
+    assert _store(fake).list_all_response_actions() == []
+    assert _store(fake).list_pending_commands("WS01") == []
 
 
 def test_list_alerts_with_no_filters_uses_match_all():
@@ -129,6 +178,15 @@ def test_update_response_action_returns_none_on_failure():
     assert _store(fake).update_response_action("act-1", {"status": "received"}) is None
 
 
+def test_list_response_actions_filters_by_incident_id_keyword():
+    fake = FakeESClient()
+    _store(fake).list_response_actions("inc-1")
+
+    _, call = fake.calls[-1]
+    assert call["index"] == "response_actions"
+    assert call["query"] == {"term": {"incident_id.keyword": "inc-1"}}
+
+
 def test_list_pending_commands_filters_by_host_and_status():
     fake = FakeESClient()
     _store(fake).list_pending_commands("WS01")
@@ -136,8 +194,8 @@ def test_list_pending_commands_filters_by_host_and_status():
     _, call = fake.calls[-1]
     assert call["index"] == "response_actions"
     must = call["query"]["bool"]["must"]
-    assert {"term": {"host": "WS01"}} in must
-    assert {"term": {"status": "issued"}} in must
+    assert {"term": {"host.keyword": "WS01"}} in must
+    assert {"term": {"status.keyword": "issued"}} in must
 
 
 def test_list_all_response_actions_sorts_by_issued_time_desc():
