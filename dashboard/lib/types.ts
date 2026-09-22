@@ -15,6 +15,7 @@ export interface Alert {
   ppid: number;
   image: string;
   command_line: string | null;
+  false_positive: boolean | null;
 }
 
 export interface ChainNode {
@@ -117,4 +118,134 @@ export interface GraphNode {
 export interface Graph {
   nodes: GraphNode[];
   edges: ChainEdge[];
+}
+
+// --- Metrics page ---
+
+export type MetricStatus = "ok" | "no_data" | "pending_upstream";
+
+export interface MetricValue<T> {
+  value: T;
+  status: MetricStatus;
+}
+
+export type MetricsRange = "24h" | "7d" | "30d" | "all";
+
+export interface DurationStats {
+  mean: number;
+  median: number;
+  p90: number;
+  count: number;
+}
+
+export interface MetricsSummary {
+  range: string;
+  since: string | null;
+  as_of: string;
+  total_alerts: MetricValue<number>;
+  total_incidents: MetricValue<number>;
+  critical_incidents: MetricValue<number>;
+  mttd: MetricValue<DurationStats | null>;
+  mttd_by_scenario: MetricValue<Record<string, DurationStats>>;
+  mttr: MetricValue<DurationStats | null>;
+  mttr_by_scenario: MetricValue<Record<string, DurationStats>>;
+  alert_to_incident_ratio: MetricValue<number | null>;
+  response_actions_by_mode: MetricValue<Record<string, number>>;
+}
+
+export interface TimeseriesBucket {
+  bucket: string;
+  severity_counts: Record<string, number>;
+}
+
+export interface MetricsTimeseries {
+  range: string;
+  since: string | null;
+  as_of: string;
+  buckets: MetricValue<TimeseriesBucket[]>;
+}
+
+export interface TopTerm {
+  key: string;
+  count: number;
+}
+
+export interface FpRateEntry {
+  fp_count: number;
+  total: number;
+  rate: number;
+}
+
+export interface MetricsTop {
+  range: string;
+  since: string | null;
+  as_of: string;
+  top_hosts: MetricValue<TopTerm[]>;
+  top_rules: MetricValue<TopTerm[]>;
+  top_users: MetricValue<TopTerm[]>;
+  fp_rate_by_rule: MetricValue<Record<string, FpRateEntry>>;
+}
+
+export interface MitreCell {
+  technique: string;
+  tactic: string | null;
+  count: number;
+  status: "fired" | "covered_not_fired";
+}
+
+export interface MetricsMitre {
+  range: string;
+  since: string | null;
+  as_of: string;
+  coverage_status: "ok" | "pending_upstream";
+  techniques: MetricValue<MitreCell[]>;
+}
+
+export interface ActionStats {
+  total: number;
+  succeeded: number;
+  rate: number | null;
+}
+
+export interface DryRunStats {
+  total: number;
+  by_status: Record<string, number>;
+}
+
+export interface MetricsResponse {
+  range: string;
+  since: string | null;
+  as_of: string;
+  by_action: MetricValue<Record<string, ActionStats>>;
+  live: MetricValue<ActionStats>;
+  dry_run: MetricValue<DryRunStats>;
+  kill_switch: boolean;
+  response_mode: string;
+}
+
+export interface TriageStats {
+  verdict_counts: Record<string, number>;
+  failed_count: number;
+  total_count: number;
+  avg_confidence: number | null;
+  avg_latency_seconds: number | null;
+}
+
+export interface MetricsTriage {
+  range: string;
+  since: string | null;
+  as_of: string;
+  stats: MetricValue<TriageStats | null>;
+}
+
+export interface IndexHealth {
+  count: number;
+  latest_timestamp: string | null;
+}
+
+export interface MetricsPipeline {
+  range: string;
+  since: string | null;
+  as_of: string;
+  sources: Record<string, MetricValue<IndexHealth | null>>;
 }

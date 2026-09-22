@@ -218,5 +218,49 @@
       "remote_ips": ["10.0.0.20", "10.0.0.21"],
       "file_paths": []
     }
+  },
+  {
+    "incident_id": "inc-0005",
+    "incident_raised_time": "2026-08-01T08:00:05.000Z",
+    "host": "WS05",
+    "user": "CORP\\frank",
+    "severity": "low",
+    "risk_score": 4,
+    "matched_scenario": null,
+    "techniques": ["T1046"],
+    "tactics": ["discovery"],
+    "alert_ids": ["alert-0005"],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-0005-1",
+          "pid": 7100,
+          "ppid": 700,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe /c for /L %i in (1,1,254) do ping -n 1 10.0.0.%i",
+          "timestamp": "2026-08-01T08:00:00.000Z",
+          "technique": "T1046",
+          "rule_id": "T1046_port_scan"
+        },
+        {
+          "event_id": "evt-0005-2",
+          "pid": 7100,
+          "ppid": 700,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": null,
+          "timestamp": "2026-08-01T08:00:04.000Z",
+          "technique": null,
+          "rule_id": null
+        }
+      ],
+      "edges": [
+        {"from": "evt-0005-1", "to": "evt-0005-2", "relation": "network"}
+      ]
+    },
+    "targets": {
+      "pids": [7100],
+      "remote_ips": [],
+      "file_paths": []
+    }
   }
 ]

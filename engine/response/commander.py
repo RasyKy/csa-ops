@@ -14,24 +14,36 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _is_manual(action: dict) -> bool:
+    decided_by = action.get("decided_by") or {}
+    return decided_by.get("policy_rule") == "manual"
+
+
 def handle_incident(incident: dict, *, store, settings) -> Optional[dict]:
     """Registered with the intake watcher. Fixed safety order: kill switch, mode, decision (rule 3.1).
 
     Idempotency guard runs first, ahead of that order: the watcher's shared
-    processed-set is not the only defense against re-acting on an incident
-    (rule 12). A processed-set reset (e.g. clearing intake_state to re-test
-    triage) must not cause a second automatic action -- including a second
-    blocked_by_kill_switch doc -- for an incident already handled.
+    processed-set is not the only defense against re-acting on an incident.
+    A processed-set reset (e.g. clearing intake_state to re-test triage)
+    must not cause a second automatic action -- including a second
+    blocked_by_kill_switch doc -- for an incident already handled
+    automatically. Only records from this automatic path count: a manual
+    POST /response/actions issued before the watcher's next poll (e.g.
+    while INTAKE_ENABLED=false, or simply faster than the analyst) must
+    never suppress the policy-mandated automatic response -- the two paths
+    are independent by design (issue_manual_action is "the only path
+    allowed to issue never_auto actions", not a substitute for the
+    automatic one).
     """
     incident_id = incident["incident_id"]
-    existing = store.list_response_actions(incident_id)
-    if existing:
+    existing_automatic = [a for a in store.list_response_actions(incident_id) if not _is_manual(a)]
+    if existing_automatic:
         logger.info(
-            "incident %s already has a response_actions record (action_id=%s); "
+            "incident %s already has an automatic response_actions record (action_id=%s); "
             "skipping automatic re-dispatch",
-            incident_id, existing[-1].get("action_id"),
+            incident_id, existing_automatic[-1].get("action_id"),
         )
-        return existing[-1]
+        return existing_automatic[-1]
 
     host = incident["host"]
     kill_switch = KillSwitch(settings.kill_switch_path)

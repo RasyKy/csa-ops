@@ -80,7 +80,12 @@ def _call_anthropic(system, user, model, api_key, base_url, timeout_seconds) -> 
         headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
         json={
             "model": model,
-            "max_tokens": 1024,
+            # 4096, not the previous 1024: shared between triage's tiny
+            # schema and explain's much larger one (summary, objective,
+            # notable_details[], next_steps[], caveats[]). 1024 could
+            # truncate explain's output, producing invalid JSON and a
+            # schema-validation failure unrelated to incident complexity.
+            "max_tokens": 4096,
             "system": system,
             "messages": [{"role": "user", "content": user}],
         },

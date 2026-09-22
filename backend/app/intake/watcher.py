@@ -28,8 +28,15 @@ class IntakeWatcher:
             self._task = None
 
     async def _run(self) -> None:
+        loop = asyncio.get_event_loop()
         while not self._stopped.is_set():
-            self.poll_once()
+            # poll_once() is synchronous and its handlers can block on real
+            # network calls (e.g. the AI triage handler's LLM request, up to
+            # LLM_TIMEOUT_SECONDS). Running it in-line on the event loop would
+            # freeze every other request (dashboard polling, health checks,
+            # the agent's long-poll) for the duration -- so it runs in a
+            # worker thread instead.
+            await loop.run_in_executor(None, self.poll_once)
             try:
                 await asyncio.wait_for(self._stopped.wait(), timeout=self._poll_seconds)
             except asyncio.TimeoutError:
@@ -46,7 +53,15 @@ class IntakeWatcher:
 
         for incident in new_incidents:
             for handler in self.handlers:
-                handler(incident)
+                # One handler's failure must not skip the next handler for
+                # this incident, nor stop the batch, nor kill the watcher's
+                # background task for every incident after this one.
+                try:
+                    handler(incident)
+                except Exception:
+                    logger.exception(
+                        "handler %r raised for incident %s; continuing", handler, incident["incident_id"]
+                    )
             processed.add(incident["incident_id"])
             raised_time = incident["incident_raised_time"]
             if watermark is None or raised_time > watermark:

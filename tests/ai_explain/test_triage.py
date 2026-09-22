@@ -28,6 +28,24 @@ def test_valid_json_is_accepted(monkeypatch):
     assert result.verdict == "true_positive"
     assert result.confidence == "high"
     assert result.incident_id == "inc-test"
+    # triage_started_time is captured before the LLM call so metrics can
+    # measure triage latency (finish - start) without touching the
+    # incident's own timestamp (CLAUDE.md: MTTD/latency must not be
+    # conflated with how old the incident is).
+    assert result.triage_started_time is not None
+    assert result.triage_started_time <= result.triage_time
+
+
+def test_failed_triage_still_records_triage_started_time(monkeypatch):
+    monkeypatch.setattr(
+        triage.llm_client, "complete",
+        lambda system, user, schema: (_ for _ in ()).throw(LLMError("boom")),
+    )
+
+    result = triage.triage_incident(INCIDENT)
+
+    assert result.status == "failed"
+    assert result.triage_started_time is not None
 
 
 def test_invalid_output_is_rejected_and_written_as_failed(monkeypatch):
@@ -84,7 +102,7 @@ def test_triage_incident_skips_llm_call_when_store_already_has_a_triage_record(m
     # Regression: clearing intake_state to re-test something else must not
     # re-run (and potentially flap) an incident's verdict. triage_incident
     # must check its own store before acting, not rely solely on the
-    # watcher's shared processed-set (rule 12).
+    # watcher's shared processed-set.
     existing_record = {
         "incident_id": "inc-test", "triage_time": "2026-01-01T00:00:00.000Z",
         "verdict": "true_positive", "confidence": "high", "reason": "already triaged",

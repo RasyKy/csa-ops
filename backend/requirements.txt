@@ -7,4 +7,4 @@ python-dotenv==1.0.1
 httpx==0.28.1
 pytest==9.0.3
 pyyaml==6.0.3             # engine/response/decision.py loads policy.yaml
-elasticsearch==8.13.4     # only needed when STORE_BACKEND=elasticsearch
+elasticsearch==8.13.2     # only needed when STORE_BACKEND=elasticsearch (8.13.4 doesn't exist on PyPI; closest valid client version to the 8.13.4 server image)
