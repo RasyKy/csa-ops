@@ -1,0 +1,10 @@
+# Person B backend. Kept separate from the root requirements.txt, which
+# belongs to ingestion (engine/normalizer/consumer.py).
+fastapi==0.136.1
+uvicorn[standard]==0.34.0
+pydantic==2.13.4
+python-dotenv==1.0.1
+httpx==0.28.1
+pytest==9.0.3
+pyyaml==6.0.3             # engine/response/decision.py loads policy.yaml
+elasticsearch==8.13.4     # only needed when STORE_BACKEND=elasticsearch

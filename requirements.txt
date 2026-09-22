@@ -1,0 +1,3 @@
+# engine/normalizer/consumer.py
+kafka-python==2.0.2       # imported as `kafka` (KafkaConsumer)
+elasticsearch==8.13.4     # `elasticsearch` + `elasticsearch.helpers.bulk`; matches ES server in docker-compose.yml
