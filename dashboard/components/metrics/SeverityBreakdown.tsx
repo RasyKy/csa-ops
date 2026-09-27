@@ -2,28 +2,24 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
+import { useTheme } from "@/components/ThemeProvider";
 import type { MetricsTimeseries, MetricsTop } from "@/lib/types";
+import { SEVERITY_HEX } from "@/lib/severity";
 import { MetricState } from "./MetricState";
-
-const SEVERITY_COLORS: Record<string, string> = {
-  low: "#94a3b8",
-  medium: "#fbbf24",
-  high: "#f97316",
-  critical: "#ef4444",
-};
+import { tooltipStyle } from "./chartTheme";
 
 function TopList({ title, items }: { title: string; items: { key: string; count: number }[] }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{title}</p>
       {items.length === 0 ? (
-        <p className="text-sm text-slate-500">No data in this range.</p>
+        <p className="text-sm text-zinc-500">No data</p>
       ) : (
         <ul className="space-y-1 text-sm">
           {items.map((item) => (
             <li key={item.key} className="flex justify-between gap-4">
               <span className="truncate">{item.key}</span>
-              <span className="text-slate-500">{item.count}</span>
+              <span className="text-zinc-500">{item.count}</span>
             </li>
           ))}
         </ul>
@@ -48,10 +44,11 @@ export function SeverityBreakdown({
     }
   }
   const donutData = Object.entries(severityTotals).map(([severity, count]) => ({ severity, count }));
+  const { theme } = useTheme();
 
   return (
-    <div className="rounded border border-slate-200 p-4 dark:border-slate-800">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
         Severity breakdown &amp; top sources
       </h3>
       <div className="grid gap-4 sm:grid-cols-3">
@@ -65,10 +62,13 @@ export function SeverityBreakdown({
               <PieChart>
                 <Pie data={donutData} dataKey="count" nameKey="severity" innerRadius={30} outerRadius={55}>
                   {donutData.map((d) => (
-                    <Cell key={d.severity} fill={SEVERITY_COLORS[d.severity] ?? "#94a3b8"} />
+                    <Cell
+                      key={d.severity}
+                      fill={SEVERITY_HEX[d.severity as keyof typeof SEVERITY_HEX] ?? "#71717a"}
+                    />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={tooltipStyle(theme)} />
               </PieChart>
             </ResponsiveContainer>
           )}

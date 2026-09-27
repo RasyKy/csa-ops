@@ -20,21 +20,21 @@ function formatAge(latestTimestamp: string): string {
 
 export function PipelineHealthStrip({ data }: { data: MetricsPipeline | null }) {
   return (
-    <div className="rounded border border-slate-200 p-4 dark:border-slate-800">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Pipeline health</h3>
+    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Pipeline health</h3>
       {!data ? (
         <MetricState status="loading" />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           {Object.entries(data.sources).map(([source, health]) => (
             <div key={source}>
-              <p className="mb-1 truncate text-xs text-slate-500" title={LABELS[source] ?? source}>
+              <p className="mb-1 truncate text-xs text-zinc-500" title={LABELS[source] ?? source}>
                 {LABELS[source] ?? source}
               </p>
               {health.status === "ok" && health.value ? (
                 <>
                   <p className="text-lg font-semibold">{health.value.count}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-zinc-500">
                     {health.value.latest_timestamp ? formatAge(health.value.latest_timestamp) : "—"}
                   </p>
                 </>
@@ -42,7 +42,7 @@ export function PipelineHealthStrip({ data }: { data: MetricsPipeline | null }) 
                 <MetricState
                   status={health.status}
                   noDataMessage="No documents yet"
-                  pendingMessage="Not owned/reachable"
+                  pendingMessage="Not connected in this environment"
                 />
               )}
             </div>

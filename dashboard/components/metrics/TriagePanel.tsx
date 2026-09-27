@@ -7,47 +7,46 @@ function formatSeconds(seconds: number): string {
   return `${(seconds / 3600).toFixed(1)}h`;
 }
 
+// Compact by design -- headline numbers plus the top verdict, not the full
+// distribution table (that stays reasonable to add back on /incidents if
+// ever needed, but doesn't belong in a 3-across bottom row).
 export function TriagePanel({ data }: { data: MetricsTriage | null }) {
+  const stats = data?.stats.status === "ok" ? data.stats.value : null;
+  const topVerdict = stats
+    ? Object.entries(stats.verdict_counts).sort(([, a], [, b]) => b - a)[0]
+    : undefined;
+
   return (
-    <div className="rounded border border-slate-200 p-4 dark:border-slate-800">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">AI triage</h3>
+    <div className="rounded border border-zinc-200 p-3 dark:border-zinc-800">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">AI triage</h3>
       {!data ? (
         <MetricState status="loading" />
-      ) : data.stats.status !== "ok" || !data.stats.value ? (
-        <MetricState status={data.stats.status} />
+      ) : !stats ? (
+        <MetricState status={data.stats.status} noDataMessage="No triage yet" />
       ) : (
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-500">Avg confidence (low=1, med=2, high=3)</span>
-            <span>{data.stats.value.avg_confidence?.toFixed(1) ?? "—"}</span>
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between gap-2">
+            <span className="text-zinc-500">Avg confidence</span>
+            <span>{stats.avg_confidence?.toFixed(1) ?? "—"} / 3</span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-500">Avg triage latency</span>
+          <div className="flex justify-between gap-2">
+            <span className="text-zinc-500">Avg latency</span>
+            <span>{stats.avg_latency_seconds !== null ? formatSeconds(stats.avg_latency_seconds) : "—"}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-zinc-500">Failed runs</span>
             <span>
-              {data.stats.value.avg_latency_seconds !== null
-                ? formatSeconds(data.stats.value.avg_latency_seconds)
-                : "—"}
+              {stats.failed_count}/{stats.total_count}
             </span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-500">Failed triage runs</span>
-            <span>
-              {data.stats.value.failed_count} / {data.stats.value.total_count}
-            </span>
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Verdict distribution
-            </p>
-            <ul className="space-y-1">
-              {Object.entries(data.stats.value.verdict_counts).map(([verdict, count]) => (
-                <li key={verdict} className="flex justify-between gap-4">
-                  <span>{verdict}</span>
-                  <span className="text-slate-500">{count}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {topVerdict && (
+            <div className="flex justify-between gap-2 truncate">
+              <span className="text-zinc-500">Top verdict</span>
+              <span className="truncate">
+                {topVerdict[0].replace(/_/g, " ")} ({topVerdict[1]})
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>
