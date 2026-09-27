@@ -23,7 +23,7 @@ function label(node: GraphNodeData) {
   return (
     <div className="text-xs leading-tight">
       <div className="font-mono">{basename(node.image)}</div>
-      <div className="text-slate-500">pid {node.pid}</div>
+      <div className="text-zinc-500">pid {node.pid}</div>
     </div>
   );
 }
@@ -36,7 +36,7 @@ export function IncidentGraph({ graph }: { graph: GraphData }) {
       data: { label: label(n) },
       className: n.is_trigger
         ? "!border-2 !border-red-500 !bg-red-50 dark:!bg-red-950"
-        : "!border-slate-300 !bg-slate-50 dark:!border-slate-700 dark:!bg-slate-900",
+        : "!border-zinc-300 !bg-zinc-50 dark:!border-zinc-700 dark:!bg-zinc-900",
       style: { width: 220 },
     }));
 
@@ -52,7 +52,7 @@ export function IncidentGraph({ graph }: { graph: GraphData }) {
   }, [graph]);
 
   return (
-    <div style={{ height: 420 }} className="rounded border border-slate-200 dark:border-slate-800">
+    <div style={{ height: 420 }} className="rounded border border-zinc-200 dark:border-zinc-800">
       <ReactFlow nodes={nodes} edges={edges} fitView proOptions={{ hideAttribution: true }}>
         <Background />
         <Controls />

@@ -30,7 +30,7 @@ export default async function IncidentDetailPage({ params }: { params: { id: str
 
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <a href="/incidents" className="text-sm text-slate-500 hover:underline">
+      <a href="/incidents" className="text-sm text-zinc-500 hover:underline">
         &larr; Incidents
       </a>
       <div className="mt-2 flex items-center gap-3">
@@ -46,7 +46,7 @@ export default async function IncidentDetailPage({ params }: { params: { id: str
       </dl>
 
       <section className="mt-6">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Attack chain</h2>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">Attack chain</h2>
         <IncidentGraph graph={graph} />
       </section>
 
@@ -62,7 +62,7 @@ export default async function IncidentDetailPage({ params }: { params: { id: str
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-slate-500">{label}</dt>
+      <dt className="text-zinc-500">{label}</dt>
       <dd>{value}</dd>
     </div>
   );

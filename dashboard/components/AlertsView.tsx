@@ -37,7 +37,7 @@ export function AlertsView() {
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-slate-500 dark:border-slate-800">
+          <tr className="border-b border-zinc-200 text-left text-zinc-500 dark:border-zinc-800">
             <th className="py-2 pr-4">Severity</th>
             <th className="py-2 pr-4">Rule</th>
             <th className="py-2 pr-4">Technique</th>
@@ -48,7 +48,7 @@ export function AlertsView() {
         </thead>
         <tbody>
           {alerts.map((alert) => (
-            <tr key={alert.alert_id} className="border-b border-slate-100 dark:border-slate-900">
+            <tr key={alert.alert_id} className="border-b border-zinc-100 dark:border-zinc-900">
               <td className="py-2 pr-4">
                 <SeverityBadge severity={alert.severity} />
               </td>
@@ -61,7 +61,7 @@ export function AlertsView() {
           ))}
           {alerts.length === 0 && !error && (
             <tr>
-              <td colSpan={6} className="py-4 text-center text-slate-500">
+              <td colSpan={6} className="py-4 text-center text-zinc-500">
                 No alerts.
               </td>
             </tr>

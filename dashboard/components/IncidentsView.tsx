@@ -43,7 +43,7 @@ export function IncidentsView() {
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-slate-500 dark:border-slate-800">
+          <tr className="border-b border-zinc-200 text-left text-zinc-500 dark:border-zinc-800">
             <th className="py-2 pr-4">Severity</th>
             <th className="py-2 pr-4">Host</th>
             <th className="py-2 pr-4">User</th>
@@ -56,7 +56,7 @@ export function IncidentsView() {
         </thead>
         <tbody>
           {incidents.map((incident) => (
-            <tr key={incident.incident_id} className="border-b border-slate-100 dark:border-slate-900">
+            <tr key={incident.incident_id} className="border-b border-zinc-100 dark:border-zinc-900">
               <td className="py-2 pr-4">
                 <SeverityBadge severity={incident.severity} />
               </td>
@@ -77,7 +77,7 @@ export function IncidentsView() {
           ))}
           {incidents.length === 0 && !error && (
             <tr>
-              <td colSpan={8} className="py-4 text-center text-slate-500">
+              <td colSpan={8} className="py-4 text-center text-zinc-500">
                 No incidents.
               </td>
             </tr>
