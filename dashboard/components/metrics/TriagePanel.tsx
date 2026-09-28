@@ -26,8 +26,10 @@ export function TriagePanel({ data }: { data: MetricsTriage | null }) {
       ) : (
         <div className="space-y-1.5 text-sm">
           <div className="flex justify-between gap-2">
-            <span className="text-zinc-500">Avg confidence</span>
-            <span>{stats.avg_confidence?.toFixed(1) ?? "—"} / 3</span>
+            <span className="text-zinc-500">Confidence</span>
+            <span>
+              {(["low", "medium", "high"] as const).map((level) => `${level} ${stats.confidence_counts[level] ?? 0}`).join(" · ")}
+            </span>
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-zinc-500">Avg latency</span>

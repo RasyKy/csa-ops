@@ -2,43 +2,53 @@ import Link from "next/link";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TriageBadge } from "@/components/TriageBadge";
-import type { IncidentListItem, MetricsResponse, MetricsSummary } from "@/lib/types";
+import type { IncidentListItem, MetricsResponse } from "@/lib/types";
 import { MetricState } from "./MetricState";
 
-function StatBlock({ label, value, status }: { label: string; value: number | null; status: string }) {
+const COMPLETED_STATUSES = ["executed", "failed"];
+
+// No case-management/status field exists in the incident contract yet
+// (see docs/person_b.md "Known limitations"). Until one does, an incident
+// counts as "open" if its response hasn't actually completed -- issued
+// but not yet executed or failed, or nothing dispatched at all.
+export function isOpenIncident(incident: IncidentListItem): boolean {
+  const status = incident.last_response_action?.status;
+  return !status || !COMPLETED_STATUSES.includes(status);
+}
+
+function StatBlock({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
-      {status === "ok" && value !== null ? (
-        <p className="text-2xl font-semibold">{value}</p>
-      ) : (
-        <MetricState status={status as "no_data" | "pending_upstream"} />
-      )}
+      <p className="text-2xl font-semibold">{value}</p>
     </div>
   );
 }
 
 // The page's first section, per the "what needs my attention right now"
-// brief: incident volume, the single most important safety fact (kill
-// switch / dry-run state), and the newest incidents to look at -- all
-// above the fold, ahead of any chart.
+// brief: open-incident volume, the single most important safety fact
+// (kill switch / dry-run state), and the newest incidents to look at --
+// all above the fold, ahead of any chart. Renders the same way whether
+// the range is empty or not: counts just read 0, matching every other
+// section on the page (no separate empty-state layout here).
 export function NeedsAttention({
-  summary,
-  response,
   incidents,
+  response,
 }: {
-  summary: MetricsSummary | null;
-  response: MetricsResponse | null;
   incidents: IncidentListItem[] | null;
+  response: MetricsResponse | null;
 }) {
+  const openIncidents = incidents?.filter(isOpenIncident) ?? null;
+  const criticalOpen = openIncidents?.filter((i) => i.severity === "critical").length ?? null;
+
   return (
     <section className="mb-6">
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs attention</h2>
       <div className="grid gap-3 sm:grid-cols-3">
-        {summary ? (
+        {openIncidents !== null && criticalOpen !== null ? (
           <>
-            <StatBlock label="Incidents" value={summary.total_incidents.value} status={summary.total_incidents.status} />
-            <StatBlock label="Critical" value={summary.critical_incidents.value} status={summary.critical_incidents.status} />
+            <StatBlock label="Open incidents" value={openIncidents.length} />
+            <StatBlock label="Critical" value={criticalOpen} />
           </>
         ) : (
           <>
@@ -79,27 +89,35 @@ export function NeedsAttention({
             View all
           </Link>
         </div>
-        {!incidents ? (
+        {openIncidents === null ? (
           <div className="p-4">
             <MetricState status="loading" />
           </div>
-        ) : incidents.length === 0 ? (
+        ) : openIncidents.length === 0 ? (
           <div className="p-4">
-            <MetricState status="no_data" noDataMessage="No incidents in this range" />
+            <p className="truncate text-sm text-zinc-500">No open incidents in this range</p>
           </div>
         ) : (
           <ul>
-            {incidents.map((incident) => (
+            {openIncidents.slice(0, 5).map((incident) => (
               <li key={incident.incident_id} className="border-t border-zinc-100 first:border-t-0 dark:border-zinc-900">
                 <Link
                   href={`/incidents/${incident.incident_id}`}
-                  className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                  className="grid grid-cols-[72px_88px_128px_1fr_220px] items-center gap-3 px-4 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
                 >
                   <SeverityBadge severity={incident.severity} />
-                  <span className="w-20 shrink-0 truncate">{incident.host}</span>
-                  <span className="w-32 shrink-0 truncate text-zinc-500">{incident.user}</span>
-                  <span className="flex-1 truncate text-zinc-500">{incident.matched_scenario ?? "—"}</span>
-                  <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} />
+                  <span className="truncate" title={incident.host}>
+                    {incident.host}
+                  </span>
+                  <span className="truncate text-zinc-500" title={incident.user}>
+                    {incident.user}
+                  </span>
+                  <span className="truncate text-zinc-500" title={incident.matched_scenario ?? undefined}>
+                    {incident.matched_scenario ?? "—"}
+                  </span>
+                  <span className="justify-self-end whitespace-nowrap">
+                    <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} prefix="AI:" />
+                  </span>
                 </Link>
               </li>
             ))}

@@ -1,5 +1,5 @@
 """Pydantic output models for triage verdicts and explain sections."""
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -15,18 +15,31 @@ class TriageVerdict(BaseModel):
     reason: str = Field(max_length=200)
 
 
+# Explain's free-text fields have no enum backstop the way TriageVerdict's
+# verdict/confidence do, so a successful prompt injection here has no
+# structural ceiling on its own -- these caps are that ceiling. Exceeding
+# any of them fails validation the same way an invalid verdict does
+# (discarded, not truncated -- CLAUDE.md rule 9).
+_BoundedItem = Annotated[str, Field(max_length=300)]
+
+
 class ExplainContent(BaseModel):
     """What the LLM produces for explain -- the five sections minus generated_time."""
 
-    summary: str
-    objective: str
-    notable_details: list[str]
-    next_steps: list[str]
-    caveats: list[str]
+    summary: str = Field(max_length=600)
+    objective: str = Field(max_length=600)
+    notable_details: list[_BoundedItem] = Field(max_length=6)
+    next_steps: list[_BoundedItem] = Field(max_length=6)
+    caveats: list[_BoundedItem] = Field(max_length=6)
 
 
 class Explain(ExplainContent):
     generated_time: str
+    # Populated by explain.py's post-hoc grounding check (grounding.py),
+    # never by the model itself -- entities the explanation mentions that
+    # don't appear anywhere in what it was given. Empty list, not absent,
+    # for old cached explain docs written before this field existed.
+    ungrounded_mentions: list[str] = []
 
 
 class IncidentTriage(BaseModel):

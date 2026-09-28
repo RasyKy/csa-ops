@@ -70,7 +70,7 @@ def test_post_explain_409_when_triage_failed(client, monkeypatch):
         "model": "openai/deepseek-chat", "status": "failed", "explain": None,
     })
 
-    def fail_if_called(incident, triage):
+    def fail_if_called(incident, triage, response_actions):
         raise AssertionError("explain_incident must not be called when triage failed")
 
     monkeypatch.setattr(ai_router.ai_explain, "explain_incident", fail_if_called)
@@ -84,9 +84,10 @@ def test_post_explain_calls_explain_incident_and_persists_result(client, monkeyp
 
     called = {}
 
-    def fake_explain_incident(incident, triage):
+    def fake_explain_incident(incident, triage, response_actions):
         called["incident_id"] = incident["incident_id"]
         called["triage_verdict"] = triage["verdict"]
+        called["response_actions"] = response_actions
         return Explain(
             summary="Credential dumping via rundll32/comsvcs.dll targeting LSASS.",
             objective="Extract credentials from memory for lateral movement.",
@@ -104,10 +105,38 @@ def test_post_explain_calls_explain_incident_and_persists_result(client, monkeyp
     assert body["explain"]["summary"].startswith("Credential dumping")
     assert called["incident_id"] == "inc-0003"
     assert called["triage_verdict"] == "true_positive"
+    assert called["response_actions"] == []  # no response actions issued for inc-0003 in this test
 
     # Persisted onto the triage doc.
     r2 = client.get("/ai/triage/inc-0003", headers=DASH)
     assert r2.json()["explain"]["summary"].startswith("Credential dumping")
+
+
+def test_post_explain_passes_existing_response_actions(client, monkeypatch):
+    # Regression: explain had no visibility into response history at all --
+    # the router must fetch it from the store and hand it to explain_incident.
+    _save_ok_triage(client)
+    r = client.post(
+        "/response/actions", headers=DASH,
+        json={"incident_id": "inc-0003", "action": "log", "target": {}},
+    )
+    assert r.status_code == 200
+
+    captured = {}
+
+    def fake_explain_incident(incident, triage, response_actions):
+        captured["response_actions"] = response_actions
+        return Explain(
+            summary="s", objective="o", notable_details=[], next_steps=[], caveats=[],
+            generated_time="2026-09-13T10:17:00.000Z",
+        )
+
+    monkeypatch.setattr(ai_router.ai_explain, "explain_incident", fake_explain_incident)
+
+    client.post("/ai/explain/inc-0003", headers=DASH)
+
+    assert len(captured["response_actions"]) == 1
+    assert captured["response_actions"][0]["action"] == "log"
 
 
 def test_post_explain_second_call_is_cached_not_recomputed(client, monkeypatch):
@@ -115,7 +144,7 @@ def test_post_explain_second_call_is_cached_not_recomputed(client, monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_explain_incident(incident, triage):
+    def fake_explain_incident(incident, triage, response_actions):
         calls["n"] += 1
         return Explain(
             summary="s", objective="o", notable_details=[], next_steps=[], caveats=[],
@@ -133,7 +162,7 @@ def test_post_explain_second_call_is_cached_not_recomputed(client, monkeypatch):
 def test_post_explain_502_when_llm_call_fails(client, monkeypatch):
     _save_ok_triage(client)
 
-    def failing_explain_incident(incident, triage):
+    def failing_explain_incident(incident, triage, response_actions):
         raise RuntimeError("LLM unreachable")
 
     monkeypatch.setattr(ai_router.ai_explain, "explain_incident", failing_explain_incident)

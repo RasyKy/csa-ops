@@ -1,31 +1,43 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { RANGE_LABEL } from "@/lib/range";
 import type { MetricsRange } from "@/lib/types";
 
-const RANGE_LABEL: Record<MetricsRange, string> = {
-  "24h": "the last 24 hours",
-  "7d": "the last 7 days",
-  "30d": "the last 30 days",
-  all: "all time",
-};
+// A slim, dismissible banner -- not a page swap. The layout underneath
+// stays exactly the same whether the range is empty or not (every count
+// just reads 0); this only exists to offer a quick way out of a range that
+// happens to have nothing in it.
+export function EmptyRangeBanner({ range, onSwitchToAll }: { range: MetricsRange; onSwitchToAll: () => void }) {
+  const [dismissed, setDismissed] = useState(false);
 
-// Shown instead of every individual widget saying "no data" -- one
-// page-level message with a way out, when the whole selected range is
-// empty of alerts and incidents.
-export function EmptyRangeState({ range, onSwitchToAll }: { range: MetricsRange; onSwitchToAll: () => void }) {
+  useEffect(() => {
+    setDismissed(false);
+  }, [range]);
+
+  if (dismissed || range === "all") return null;
+
   return (
-    <div className="flex flex-col items-center gap-3 rounded border border-zinc-200 px-6 py-16 text-center dark:border-zinc-800">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-10 w-10 text-zinc-400">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 15l4-4 3 3 5-6" />
-      </svg>
-      <p className="text-sm text-zinc-500">No activity in {RANGE_LABEL[range]}.</p>
-      {range !== "all" && (
+    <div className="mb-4 flex items-center justify-between gap-3 rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <span className="truncate text-zinc-600 dark:text-zinc-400">No activity in {RANGE_LABEL[range]}.</span>
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onSwitchToAll}
-          className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-800"
         >
           Switch to all time
         </button>
-      )}
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss"
+          className="px-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }

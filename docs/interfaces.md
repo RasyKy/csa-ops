@@ -222,6 +222,16 @@ in the same rate as live actions made an all-dry-run system read as a 0%
 failure rate. `GET /metrics/response` reports a `live` success rate
 (`by_action` too) separately from a `dry_run` status breakdown.
 
+**`GET /metrics/top`'s `top_rules` entries carry a `title`** (the alert
+document's `rule_title`, joined in-memory from the same alerts fetch
+`fp_rate_by_rule` already uses -- no new Store method), so the dashboard
+never has to show a bare `rule_id`. `title` is `null` if no alert in range
+happens to carry that rule_id's title.
+
+**`GET /metrics/triage`'s `stats` gained `confidence_counts`**
+(`{low, medium, high}` -> count), alongside the existing `avg_confidence` --
+the dashboard shows the breakdown instead of a single averaged number.
+
 **Ingestion, read-only peek only:** `logs-normalized`'s document count and
 latest `timestamp`, for the pipeline-health widget (last-event-time per
 source). B still never writes here -- same read-only pattern as reading

@@ -112,6 +112,7 @@ def test_compute_triage_stats_failed_records_counted_separately_from_verdicts():
     result = calc.compute_triage_stats(records)
     assert result["failed_count"] == 1
     assert result["verdict_counts"] == {}
+    assert result["confidence_counts"] == {}
     assert result["avg_confidence"] is None
     assert result["avg_latency_seconds"] is None
 
@@ -133,6 +134,7 @@ def test_compute_triage_stats_maps_confidence_and_computes_latency():
     result = calc.compute_triage_stats(records)
 
     assert result["verdict_counts"] == {"true_positive": 2}
+    assert result["confidence_counts"] == {"high": 1, "low": 1}
     assert result["failed_count"] == 0
     assert result["total_count"] == 2
     assert result["avg_confidence"] == 2.0  # (high=3 + low=1) / 2

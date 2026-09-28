@@ -87,7 +87,7 @@
     "rule_id": "T1047_wmi_lateral_movement",
     "rule_title": "WMI Remote Process Creation",
     "technique": "T1047",
-    "tactic": "lateral_movement",
+    "tactic": "execution",
     "severity": "critical",
     "host": "WS04",
     "user": "CORP\\erin",

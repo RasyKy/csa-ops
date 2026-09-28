@@ -44,7 +44,8 @@ def post_explain(
         return triage  # cached on the triage doc -- no repeat LLM call
 
     try:
-        result = ai_explain.explain_incident(incident, triage)
+        response_actions = store.list_response_actions(incident_id)
+        result = ai_explain.explain_incident(incident, triage, response_actions)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"explain failed: {exc}") from exc
 

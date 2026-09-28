@@ -21,7 +21,9 @@ function formatAge(latestTimestamp: string): string {
 export function PipelineHealthStrip({ data }: { data: MetricsPipeline | null }) {
   return (
     <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Pipeline health</h3>
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        Pipeline health <span className="normal-case text-zinc-400">(all-time totals, not scoped to the selected range)</span>
+      </h3>
       {!data ? (
         <MetricState status="loading" />
       ) : (

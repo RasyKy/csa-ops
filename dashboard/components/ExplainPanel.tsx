@@ -59,6 +59,19 @@ export function ExplainPanel({
 
       {explain && (
         <div className="space-y-2 text-sm">
+          {explain.ungrounded_mentions && explain.ungrounded_mentions.length > 0 && (
+            <p
+              className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+              title={`Not found in the incident data this was generated from: ${explain.ungrounded_mentions.join(", ")}`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 shrink-0">
+                <circle cx="12" cy="12" r="9" />
+                <path strokeLinecap="round" d="M12 8v5" />
+                <circle cx="12" cy="16" r="0.5" fill="currentColor" stroke="none" />
+              </svg>
+              Mentions items not found in incident data
+            </p>
+          )}
           <p>{explain.summary}</p>
           <p className="text-zinc-500">{explain.objective}</p>
           {explain.notable_details.length > 0 && <List title="Notable details" items={explain.notable_details} />}

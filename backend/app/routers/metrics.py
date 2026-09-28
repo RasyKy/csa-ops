@@ -161,10 +161,20 @@ def get_top(range: str = "7d", store=Depends(get_store), _key=Depends(require_da
     # per-rule breakdown, same as top_rules) rather than as its own endpoint.
     alerts_in_range = store.list_alerts(since=since, limit=10_000)
     fp_rate_by_rule = calc.compute_false_positive_rate(alerts_in_range)
+
+    # rule_title lives on the alert document, not on the top_terms agg --
+    # joined here from the same alerts_in_range fetch above rather than a
+    # second Store call, so the dashboard doesn't have to show a bare rule_id.
+    rule_titles = {a["rule_id"]: a.get("rule_title") for a in alerts_in_range if a.get("rule_id")}
+    top_rules = [
+        {**row, "title": rule_titles.get(row["key"])}
+        for row in store.alerts_top_terms("rule_id", since=since, size=5)
+    ]
+
     return {
         **_envelope(range, since),
         "top_hosts": _metric(store.alerts_top_terms("host", since=since, size=5)),
-        "top_rules": _metric(store.alerts_top_terms("rule_id", since=since, size=5)),
+        "top_rules": _metric(top_rules),
         "top_users": _metric(store.alerts_top_terms("user", since=since, size=5)),
         "fp_rate_by_rule": _metric(fp_rate_by_rule),
     }

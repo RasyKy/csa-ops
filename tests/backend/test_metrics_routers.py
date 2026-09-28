@@ -132,6 +132,17 @@ def test_top_hosts_ranked_by_count(client):
     assert sum(h["count"] for h in top_hosts) == 8
 
 
+def test_top_rules_include_rule_title(client):
+    # rule_title lives on the alert doc, not the top_terms agg -- the
+    # router joins it in from the same alerts_in_range fetch it already
+    # makes for fp_rate_by_rule, so the dashboard never has to show a bare
+    # rule_id.
+    r = client.get("/metrics/top?range=all", headers=DASH)
+    top_rules = r.json()["top_rules"]["value"]
+    by_key = {row["key"]: row["title"] for row in top_rules}
+    assert by_key["T1003_lsass_access"] == "LSASS Memory Access"
+
+
 def test_fp_rate_by_rule_reflects_labeled_alerts(client):
     r = client.get("/metrics/top?range=all", headers=DASH)
     fp_rates = r.json()["fp_rate_by_rule"]
@@ -250,6 +261,7 @@ def test_triage_metrics_reflects_saved_triage(client):
     stats = r.json()["stats"]
     assert stats["status"] == "ok"
     assert stats["value"]["verdict_counts"] == {"true_positive": 1}
+    assert stats["value"]["confidence_counts"] == {"high": 1}
     assert stats["value"]["avg_confidence"] == 3.0
 
 

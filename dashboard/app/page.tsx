@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertsTimeseriesChart } from "@/components/metrics/AlertsTimeseriesChart";
 import { DataSourcesIndicator } from "@/components/metrics/DataSourcesIndicator";
 import { DetectionQualityPanel } from "@/components/metrics/DetectionQualityPanel";
-import { EmptyRangeState } from "@/components/metrics/EmptyRangeState";
+import { EmptyRangeBanner } from "@/components/metrics/EmptyRangeState";
 import { KpiCards } from "@/components/metrics/KpiCards";
 import { MitreHeatmap } from "@/components/metrics/MitreHeatmap";
 import { MttdMttrPanel } from "@/components/metrics/MttdMttrPanel";
@@ -15,6 +15,7 @@ import { RangeSelector } from "@/components/metrics/RangeSelector";
 import { ResponsePanel } from "@/components/metrics/ResponsePanel";
 import { SeverityBreakdown } from "@/components/metrics/SeverityBreakdown";
 import { TriagePanel } from "@/components/metrics/TriagePanel";
+import { sinceForRange } from "@/lib/range";
 import type {
   IncidentListItem,
   MetricsMitre,
@@ -28,7 +29,12 @@ import type {
 } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 3000;
-const NEWEST_INCIDENTS_LIMIT = 5;
+// GET /incidents caps limit at 500 (backend/app/routers/incidents.py) --
+// far more than enough to cover every incident in range at this project's
+// scale. This same fetch backs both the open-incident count and the
+// newest-incidents list, so it needs every incident in range, not just the
+// newest few.
+const INCIDENTS_FETCH_LIMIT = 500;
 
 interface PageState {
   summary: MetricsSummary | null;
@@ -60,6 +66,8 @@ export default function OverviewPage() {
 
   const load = useCallback(async () => {
     const qs = `?range=${range}`;
+    const since = sinceForRange(range);
+    const incidentsQs = new URLSearchParams({ limit: String(INCIDENTS_FETCH_LIMIT), ...(since ? { since } : {}) });
     try {
       const [summary, timeseries, top, mitre, response, triage, pipeline, incidents] = await Promise.all([
         fetch(`/api/metrics/summary${qs}`).then((r) => r.json()),
@@ -69,7 +77,7 @@ export default function OverviewPage() {
         fetch(`/api/metrics/response${qs}`).then((r) => r.json()),
         fetch(`/api/metrics/triage${qs}`).then((r) => r.json()),
         fetch(`/api/metrics/pipeline`).then((r) => r.json()),
-        fetch(`/api/incidents?limit=${NEWEST_INCIDENTS_LIMIT}`).then((r) => r.json()),
+        fetch(`/api/incidents?${incidentsQs.toString()}`).then((r) => r.json()),
       ]);
       setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents });
       setLastUpdated(new Date());
@@ -99,41 +107,34 @@ export default function OverviewPage() {
       </div>
       <RangeSelector range={range} onRangeChange={setRange} lastUpdated={lastUpdated} />
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {rangeIsEmpty && <EmptyRangeBanner range={range} onSwitchToAll={() => setRange("all")} />}
 
-      {rangeIsEmpty ? (
-        <>
-          <EmptyRangeState range={range} onSwitchToAll={() => setRange("all")} />
-          <div className="mt-6">
-            <PipelineHealthStrip data={data.pipeline} />
-          </div>
-        </>
-      ) : (
-        <>
-          <NeedsAttention summary={data.summary} response={data.response} incidents={data.incidents} />
+      {/* Layout is identical across every range: sections always render in
+          the same positions, counts show 0 when empty (a real value),
+          averages show a placeholder instead. */}
+      <NeedsAttention incidents={data.incidents} response={data.response} />
 
-          <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_auto]">
-            <KpiCards summary={data.summary} />
-            <MttdMttrPanel summary={data.summary} />
-          </div>
+      <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <KpiCards summary={data.summary} />
+        <MttdMttrPanel summary={data.summary} />
+      </div>
 
-          <section className="mb-6 grid gap-6 lg:grid-cols-[2fr_1fr]">
-            <AlertsTimeseriesChart data={data.timeseries} />
-            <SeverityBreakdown timeseries={data.timeseries} top={data.top} />
-          </section>
+      <section className="mb-6 grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <AlertsTimeseriesChart data={data.timeseries} />
+        <SeverityBreakdown timeseries={data.timeseries} top={data.top} />
+      </section>
 
-          <section className="mb-6">
-            <MitreHeatmap data={data.mitre} />
-          </section>
+      <section className="mb-6">
+        <MitreHeatmap data={data.mitre} />
+      </section>
 
-          <section className="mb-6 grid gap-4 lg:grid-cols-3">
-            <ResponsePanel data={data.response} />
-            <TriagePanel data={data.triage} />
-            <DetectionQualityPanel top={data.top} />
-          </section>
+      <section className="mb-6 grid gap-4 lg:grid-cols-3">
+        <ResponsePanel data={data.response} />
+        <TriagePanel data={data.triage} />
+        <DetectionQualityPanel top={data.top} />
+      </section>
 
-          <PipelineHealthStrip data={data.pipeline} />
-        </>
-      )}
+      <PipelineHealthStrip data={data.pipeline} />
     </main>
   );
 }

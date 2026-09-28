@@ -80,6 +80,8 @@ export interface Explain {
   next_steps: string[];
   caveats: string[];
   generated_time: string;
+  // Optional: absent on explain docs cached before this field existed.
+  ungrounded_mentions?: string[];
 }
 
 export interface IncidentTriage {
@@ -170,6 +172,10 @@ export interface TopTerm {
   count: number;
 }
 
+export interface RuleTerm extends TopTerm {
+  title: string | null;
+}
+
 export interface FpRateEntry {
   fp_count: number;
   total: number;
@@ -181,7 +187,7 @@ export interface MetricsTop {
   since: string | null;
   as_of: string;
   top_hosts: MetricValue<TopTerm[]>;
-  top_rules: MetricValue<TopTerm[]>;
+  top_rules: MetricValue<RuleTerm[]>;
   top_users: MetricValue<TopTerm[]>;
   fp_rate_by_rule: MetricValue<Record<string, FpRateEntry>>;
 }
@@ -225,6 +231,7 @@ export interface MetricsResponse {
 
 export interface TriageStats {
   verdict_counts: Record<string, number>;
+  confidence_counts: Record<string, number>;
   failed_count: number;
   total_count: number;
   avg_confidence: number | null;

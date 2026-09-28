@@ -173,7 +173,7 @@
     "risk_score": 41,
     "matched_scenario": "lateral_movement_chain",
     "techniques": ["T1047", "T1021"],
-    "tactics": ["lateral_movement"],
+    "tactics": ["execution", "lateral_movement"],
     "alert_ids": ["alert-0004a", "alert-0004b"],
     "chain": {
       "nodes": [
