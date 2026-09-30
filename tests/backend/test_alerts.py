@@ -23,6 +23,18 @@ def test_list_alerts_filters_by_host(client):
     assert all(a["host"] == "WS04" for a in data)
 
 
+def test_list_alerts_filters_by_rule_id(client):
+    r = client.get("/alerts?rule_id=T1003_lsass_access", headers=HEADERS)
+    data = r.json()
+    assert len(data) >= 1
+    assert all(a["rule_id"] == "T1003_lsass_access" for a in data)
+
+
+def test_list_alerts_filters_by_rule_id_no_match(client):
+    r = client.get("/alerts?rule_id=does-not-exist", headers=HEADERS)
+    assert r.json() == []
+
+
 def test_list_alerts_respects_limit(client):
     r = client.get("/alerts?limit=1", headers=HEADERS)
     assert len(r.json()) == 1

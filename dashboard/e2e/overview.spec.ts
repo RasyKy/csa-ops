@@ -27,7 +27,7 @@ for (const width of WIDTHS) {
         await page.getByRole("button", { name: state.rangeButton, exact: true }).click();
 
         if (state.name === "populated") {
-          await page.getByText("Kill switch", { exact: false }).waitFor({ timeout: 15_000 });
+          await page.getByText("Automated response", { exact: false }).waitFor({ timeout: 15_000 });
         } else {
           await page.getByText("Switch to all time", { exact: false }).waitFor({ timeout: 15_000 });
         }
@@ -41,6 +41,23 @@ for (const width of WIDTHS) {
       });
     }
   }
+}
+
+// inc-0003 specifically: it's the real fixture with a cached explain
+// generated before response-history awareness existed, so this is also
+// visual proof of the stale-explain notice (see engine/ai_explain's
+// annotate_staleness).
+for (const theme of THEMES) {
+  test(`incident detail page (inc-0003, ${theme})`, async ({ page }) => {
+    await page.addInitScript((t) => {
+      localStorage.setItem("theme", t);
+    }, theme);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/incidents/inc-0003");
+    await page.getByText("Event timeline", { exact: false }).waitFor({ timeout: 15_000 });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `e2e/screenshots/incident-detail-${theme}-1440.png`, fullPage: true });
+  });
 }
 
 test("incidents page smoke check (dark)", async ({ page }) => {

@@ -40,6 +40,11 @@ class Explain(ExplainContent):
     # don't appear anywhere in what it was given. Empty list, not absent,
     # for old cached explain docs written before this field existed.
     ungrounded_mentions: list[str] = []
+    # Stamped by explain.py from prompts.EXPLAIN_PROMPT_VERSION at
+    # generation time. None means this doc predates version tracking
+    # entirely -- explain.py's annotate_staleness() always treats that as
+    # stale, same as any other version mismatch.
+    prompt_version: Optional[int] = None
 
 
 class IncidentTriage(BaseModel):

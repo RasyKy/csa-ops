@@ -3,7 +3,10 @@
 import { useState } from "react";
 
 import type { MetricsMitre, MitreCell } from "@/lib/types";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
+
+const MITRE_TOOLTIP = "ATT&CK techniques covered by detection rules, and how often each has actually fired.";
 
 // MITRE ATT&CK Enterprise tactics, in kill-chain order. Not bundled as the
 // full ~600-technique catalog (see docs/interfaces.md) -- just the fixed,
@@ -78,8 +81,9 @@ export function MitreHeatmap({ data }: { data: MetricsMitre | null }) {
   if (!data) {
     return (
       <div className="flex min-h-[180px] flex-col rounded border border-zinc-200 p-4 dark:border-zinc-800">
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        <h3 className="mb-3 flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-zinc-500">
           MITRE ATT&amp;CK coverage
+          <InfoTooltip text={MITRE_TOOLTIP} />
         </h3>
         <MetricState status="loading" />
       </div>
@@ -101,7 +105,10 @@ export function MitreHeatmap({ data }: { data: MetricsMitre | null }) {
   return (
     <div className="flex min-h-[180px] flex-col rounded border border-zinc-200 p-4 dark:border-zinc-800">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">MITRE ATT&amp;CK coverage</h3>
+        <h3 className="flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          MITRE ATT&amp;CK coverage
+          <InfoTooltip text={MITRE_TOOLTIP} />
+        </h3>
         <MetricState
           status={data.coverage_status}
           pendingMessage="No detection rules parsed yet -- showing fired techniques only"

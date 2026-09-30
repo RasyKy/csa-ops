@@ -87,8 +87,8 @@ class ESStore:
             raise
         return res["aggregations"]
 
-    def list_alerts(self, *, severity=None, host=None, limit=50, since=None) -> list[dict]:
-        query = _filter_query(severity=severity, host=host, since=since, since_field="timestamp")
+    def list_alerts(self, *, severity=None, host=None, rule_id=None, limit=50, since=None) -> list[dict]:
+        query = _filter_query(severity=severity, host=host, rule_id=rule_id, since=since, since_field="timestamp")
         return self._search(index=ALERTS_INDEX, query=query, size=limit, sort=[{"timestamp": "desc"}])
 
     def list_incidents(self, *, severity=None, host=None, limit=50, since=None, order="desc") -> list[dict]:
@@ -246,7 +246,7 @@ def _is_index_not_found(exc: Exception) -> bool:
     return type(exc).__name__ == "NotFoundError" and "index_not_found_exception" in str(exc)
 
 
-def _filter_query(*, severity=None, host=None, since=None, since_field="timestamp") -> dict:
+def _filter_query(*, severity=None, host=None, since=None, since_field="timestamp", rule_id=None) -> dict:
     # .keyword: alerts/incidents are A's indices with no explicit index
     # template (CLAUDE.md 1a), so string fields fall back to Elasticsearch's
     # default dynamic mapping -- "text" (analyzed) plus a "<field>.keyword"
@@ -259,6 +259,8 @@ def _filter_query(*, severity=None, host=None, since=None, since_field="timestam
         must.append({"term": {"severity.keyword": severity}})
     if host:
         must.append({"term": {"host.keyword": host}})
+    if rule_id:
+        must.append({"term": {"rule_id.keyword": rule_id}})
     if since:
         must.append({"range": {since_field: {"gt": since}}})
     return {"bool": {"must": must}} if must else {"match_all": {}}

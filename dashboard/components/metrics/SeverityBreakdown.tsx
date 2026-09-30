@@ -1,11 +1,29 @@
+import Link from "next/link";
+
 import { SEVERITY_HEX, SEVERITY_ORDER } from "@/lib/severity";
 import type { MetricsTimeseries, MetricsTop, RuleTerm, TopTerm } from "@/lib/types";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
-function TopList({ title, items, getLabel }: { title: string; items: TopTerm[]; getLabel?: (item: TopTerm) => string }) {
+function TopList({
+  title,
+  tooltip,
+  items,
+  getLabel,
+  getHref,
+}: {
+  title: string;
+  tooltip: string;
+  items: TopTerm[];
+  getLabel?: (item: TopTerm) => string;
+  getHref: (item: TopTerm) => string;
+}) {
   return (
     <div>
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{title}</p>
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        {title}
+        <InfoTooltip text={tooltip} />
+      </div>
       {items.length === 0 ? (
         <p className="text-sm text-zinc-500">No data</p>
       ) : (
@@ -13,11 +31,11 @@ function TopList({ title, items, getLabel }: { title: string; items: TopTerm[]; 
           {items.map((item) => {
             const label = getLabel ? getLabel(item) : item.key;
             return (
-              <li key={item.key} className="flex justify-between gap-4">
-                <span className="truncate" title={label}>
-                  {label}
-                </span>
-                <span className="text-zinc-500">{item.count}</span>
+              <li key={item.key}>
+                <Link href={getHref(item)} className="flex justify-between gap-4 hover:underline" title={label}>
+                  <span className="truncate">{label}</span>
+                  <span className="text-zinc-500">{item.count}</span>
+                </Link>
               </li>
             );
           })}
@@ -46,21 +64,26 @@ function SeverityCounts({ timeseries }: { timeseries: MetricsTimeseries | null }
 
   return (
     <div>
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Severity breakdown</p>
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Severity breakdown
+        <InfoTooltip text="Incidents in this range, grouped by severity." />
+      </div>
       <ul className="space-y-1.5">
         {SEVERITY_ORDER.map((severity) => {
           const count = totals[severity] ?? 0;
           const width = grandTotal > 0 ? (count / grandTotal) * 100 : 0;
           return (
-            <li key={severity} className="flex items-center gap-2 text-sm">
-              <span className="w-16 shrink-0 capitalize text-zinc-500">{severity}</span>
-              <span className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                <span
-                  className="block h-full rounded-full"
-                  style={{ width: `${width}%`, background: SEVERITY_HEX[severity] }}
-                />
-              </span>
-              <span className="w-6 shrink-0 text-right">{count}</span>
+            <li key={severity}>
+              <Link href={`/incidents?severity=${severity}`} className="flex items-center gap-2 text-sm hover:underline">
+                <span className="w-16 shrink-0 capitalize text-zinc-500">{severity}</span>
+                <span className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                  <span
+                    className="block h-full rounded-full"
+                    style={{ width: `${width}%`, background: SEVERITY_HEX[severity] }}
+                  />
+                </span>
+                <span className="w-6 shrink-0 text-right">{count}</span>
+              </Link>
             </li>
           );
         })}
@@ -83,7 +106,12 @@ export function SeverityBreakdown({ timeseries, top }: { timeseries: MetricsTime
           {!top ? (
             <MetricState status="loading" />
           ) : (
-            <TopList title="Top hosts" items={top.top_hosts.status === "ok" ? top.top_hosts.value : []} />
+            <TopList
+              title="Top hosts"
+              tooltip="Hosts generating the most alerts in this range."
+              items={top.top_hosts.status === "ok" ? top.top_hosts.value : []}
+              getHref={(item) => `/alerts?host=${encodeURIComponent(item.key)}`}
+            />
           )}
         </div>
         <div className="sm:col-span-1">
@@ -92,8 +120,10 @@ export function SeverityBreakdown({ timeseries, top }: { timeseries: MetricsTime
           ) : (
             <TopList
               title="Top rules"
+              tooltip="Detection rules firing most often in this range."
               items={top.top_rules.status === "ok" ? top.top_rules.value : []}
               getLabel={(item) => (item as RuleTerm).title ?? item.key}
+              getHref={(item) => `/alerts?rule_id=${encodeURIComponent(item.key)}`}
             />
           )}
         </div>

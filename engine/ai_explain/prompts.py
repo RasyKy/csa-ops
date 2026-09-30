@@ -2,6 +2,15 @@
 wrapped and labeled per CLAUDE.md rule 9."""
 import json
 
+# Bump whenever EXPLAIN_SYSTEM_PROMPT or build_explain_user_prompt changes
+# in a way that could change the content of an explanation -- explain.py
+# stamps this onto every Explain it produces, and the backend uses it to
+# mark cached explanations generated under an older prompt as stale (see
+# explain.py's annotate_staleness). 2 marks the addition of response-history
+# awareness (the <response_data> block and its "don't recommend an action
+# already taken" instruction) over the original, unversioned prompt (1).
+EXPLAIN_PROMPT_VERSION = 2
+
 TRIAGE_SYSTEM_PROMPT = """You are a SOC (Security Operations Center) triage assistant. You are given a \
 correlated security incident produced by an automated detection pipeline, and must classify it.
 

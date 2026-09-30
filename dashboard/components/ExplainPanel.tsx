@@ -4,6 +4,28 @@ import { useState } from "react";
 
 import type { IncidentTriage } from "@/lib/types";
 
+function Section({
+  title,
+  count,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  count?: number;
+  defaultOpen: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="rounded border border-zinc-200 dark:border-zinc-800">
+      <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        {title}
+        {count !== undefined && <span className="ml-1 text-zinc-500">({count})</span>}
+      </summary>
+      <div className="border-t border-zinc-200 p-3 text-sm dark:border-zinc-800">{children}</div>
+    </details>
+  );
+}
+
 export function ExplainPanel({
   incidentId,
   triage: initialTriage,
@@ -18,11 +40,11 @@ export function ExplainPanel({
   const canExplain = triage !== null && triage.status === "ok";
   const explain = triage?.explain ?? null;
 
-  const handleExplain = async () => {
+  const requestExplain = async (force: boolean) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/ai/explain/${incidentId}`, { method: "POST" });
+      const res = await fetch(`/api/ai/explain/${incidentId}${force ? "?force=true" : ""}`, { method: "POST" });
       if (!res.ok) throw new Error(`status ${res.status}`);
       setTriage(await res.json());
     } catch {
@@ -35,10 +57,10 @@ export function ExplainPanel({
   return (
     <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Explain</h3>
-        {canExplain && (
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">AI analysis</h3>
+        {canExplain && !explain && (
           <button
-            onClick={handleExplain}
+            onClick={() => requestExplain(false)}
             disabled={loading}
             className="rounded bg-zinc-900 px-2 py-1 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
@@ -58,7 +80,7 @@ export function ExplainPanel({
       {canExplain && !explain && !loading && <p className="text-sm text-zinc-500">Not requested yet.</p>}
 
       {explain && (
-        <div className="space-y-2 text-sm">
+        <div className="space-y-2">
           {explain.ungrounded_mentions && explain.ungrounded_mentions.length > 0 && (
             <p
               className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
@@ -72,26 +94,52 @@ export function ExplainPanel({
               Mentions items not found in incident data
             </p>
           )}
-          <p>{explain.summary}</p>
-          <p className="text-zinc-500">{explain.objective}</p>
-          {explain.notable_details.length > 0 && <List title="Notable details" items={explain.notable_details} />}
-          {explain.next_steps.length > 0 && <List title="Next steps" items={explain.next_steps} />}
-          {explain.caveats.length > 0 && <List title="Caveats" items={explain.caveats} />}
+          {explain.is_stale && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              <span>Generated with an older version of this explanation. Regenerate for up-to-date advice.</span>
+              <button
+                onClick={() => requestExplain(true)}
+                disabled={loading}
+                className="shrink-0 rounded bg-amber-600 px-2 py-1 font-medium text-white hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-500 dark:hover:bg-amber-600"
+              >
+                {loading ? "Regenerating…" : "Regenerate"}
+              </button>
+            </div>
+          )}
+
+          <Section title="Summary" defaultOpen>
+            <p>{explain.summary}</p>
+          </Section>
+          <Section title="Likely objective" defaultOpen>
+            <p>{explain.objective}</p>
+          </Section>
+          {explain.notable_details.length > 0 && (
+            <Section title="Notable details" count={explain.notable_details.length} defaultOpen={false}>
+              <List items={explain.notable_details} />
+            </Section>
+          )}
+          {explain.next_steps.length > 0 && (
+            <Section title="Next steps" count={explain.next_steps.length} defaultOpen={false}>
+              <List items={explain.next_steps} />
+            </Section>
+          )}
+          {explain.caveats.length > 0 && (
+            <Section title="Caveats" count={explain.caveats.length} defaultOpen={false}>
+              <List items={explain.caveats} />
+            </Section>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function List({ title, items }: { title: string; items: string[] }) {
+function List({ items }: { items: string[] }) {
   return (
-    <div>
-      <p className="font-medium text-zinc-700 dark:text-zinc-300">{title}</p>
-      <ul className="ml-4 list-disc space-y-0.5">
-        {items.map((item, i) => (
-          <li key={i}>{item}</li>
-        ))}
-      </ul>
-    </div>
+    <ul className="ml-4 list-disc space-y-0.5">
+      {items.map((item, i) => (
+        <li key={i}>{item}</li>
+      ))}
+    </ul>
   );
 }

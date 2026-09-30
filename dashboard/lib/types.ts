@@ -82,6 +82,11 @@ export interface Explain {
   generated_time: string;
   // Optional: absent on explain docs cached before this field existed.
   ungrounded_mentions?: string[];
+  // Computed by the backend on every read (engine/ai_explain/explain.py's
+  // annotate_staleness), never persisted -- true when this explain was
+  // generated under an older prompt version than the one currently
+  // running (or predates version tracking entirely).
+  is_stale?: boolean;
 }
 
 export interface IncidentTriage {

@@ -5,7 +5,7 @@ from typing import Optional, Protocol
 class Store(Protocol):
     def list_alerts(
         self, *, severity: Optional[str] = None, host: Optional[str] = None,
-        limit: int = 50, since: Optional[str] = None,
+        rule_id: Optional[str] = None, limit: int = 50, since: Optional[str] = None,
     ) -> list[dict]: ...
 
     def list_incidents(

@@ -1,4 +1,5 @@
 import type { MetricsTop } from "@/lib/types";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
 const TOP_N = 3;
@@ -11,7 +12,10 @@ export function DetectionQualityPanel({ top }: { top: MetricsTop | null }) {
 
   return (
     <div className="rounded border border-zinc-200 p-3 dark:border-zinc-800">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Detection quality (FP rate)</h3>
+      <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Detection quality (FP rate)
+        <InfoTooltip text="Rules with the highest false-positive rate in this range." />
+      </h3>
       {!top ? (
         <MetricState status="loading" />
       ) : top.fp_rate_by_rule.status !== "ok" || topEntries.length === 0 ? (

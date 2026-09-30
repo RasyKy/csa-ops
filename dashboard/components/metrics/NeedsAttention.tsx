@@ -2,35 +2,55 @@ import Link from "next/link";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TriageBadge } from "@/components/TriageBadge";
+import { isOpenIncident } from "@/lib/incidents";
+import { SEVERITY_HEX, SEVERITY_ORDER } from "@/lib/severity";
 import type { IncidentListItem, MetricsResponse } from "@/lib/types";
+import { AutomatedResponseStatus } from "./AutomatedResponseStatus";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
-const COMPLETED_STATUSES = ["executed", "failed"];
+export { isOpenIncident };
 
-// No case-management/status field exists in the incident contract yet
-// (see docs/person_b.md "Known limitations"). Until one does, an incident
-// counts as "open" if its response hasn't actually completed -- issued
-// but not yet executed or failed, or nothing dispatched at all.
-export function isOpenIncident(incident: IncidentListItem): boolean {
-  const status = incident.last_response_action?.status;
-  return !status || !COMPLETED_STATUSES.includes(status);
-}
+// Total (linked to /incidents?status=open) plus a per-severity breakdown,
+// most severe first -- each chip links to that exact filter combination
+// so the number shown and the list landed on always match.
+function OpenIncidentsCard({ incidents }: { incidents: IncidentListItem[] }) {
+  const bySeverity: Record<string, number> = { low: 0, medium: 0, high: 0, critical: 0 };
+  for (const incident of incidents) bySeverity[incident.severity] += 1;
 
-function StatBlock({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Open incidents
+        <InfoTooltip text="Incidents whose most recent response action hasn't finished yet, or that have no response yet." />
+      </div>
+      <Link href="/incidents?status=open" className="block w-fit text-2xl font-semibold hover:underline">
+        {incidents.length}
+      </Link>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        {[...SEVERITY_ORDER].reverse().map((severity) => (
+          <Link
+            key={severity}
+            href={`/incidents?status=open&severity=${severity}`}
+            className="flex items-center gap-1 text-xs hover:underline"
+          >
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: SEVERITY_HEX[severity] }} />
+            <span className="font-semibold">{bySeverity[severity]}</span>
+            <span className="capitalize text-zinc-500">{severity}</span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
 
 // The page's first section, per the "what needs my attention right now"
 // brief: open-incident volume, the single most important safety fact
-// (kill switch / dry-run state), and the newest incidents to look at --
-// all above the fold, ahead of any chart. Renders the same way whether
-// the range is empty or not: counts just read 0, matching every other
-// section on the page (no separate empty-state layout here).
+// (automated response status -- see AutomatedResponseStatus), and the
+// newest incidents to look at -- all above the fold, ahead of any chart.
+// Renders the same way whether the range is empty or not: counts just
+// read 0, matching every other section on the page (no separate
+// empty-state layout here).
 export function NeedsAttention({
   incidents,
   response,
@@ -39,47 +59,19 @@ export function NeedsAttention({
   response: MetricsResponse | null;
 }) {
   const openIncidents = incidents?.filter(isOpenIncident) ?? null;
-  const criticalOpen = openIncidents?.filter((i) => i.severity === "critical").length ?? null;
 
   return (
     <section className="mb-6">
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs attention</h2>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {openIncidents !== null && criticalOpen !== null ? (
-          <>
-            <StatBlock label="Open incidents" value={openIncidents.length} />
-            <StatBlock label="Critical" value={criticalOpen} />
-          </>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {openIncidents !== null ? (
+          <OpenIncidentsCard incidents={openIncidents} />
         ) : (
-          <>
-            <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-              <MetricState status="loading" />
-            </div>
-            <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-              <MetricState status="loading" />
-            </div>
-          </>
-        )}
-        <div className="flex flex-col justify-center gap-2 rounded border border-zinc-200 p-4 dark:border-zinc-800">
-          {response ? (
-            <>
-              <div className="flex items-center gap-2 text-sm">
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${response.kill_switch ? "bg-red-500" : "bg-emerald-500"}`}
-                />
-                Kill switch <span className="font-semibold">{response.kill_switch ? "ON" : "off"}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${response.response_mode === "live" ? "bg-red-500" : "bg-blue-500"}`}
-                />
-                Response mode <span className="font-semibold uppercase">{response.response_mode}</span>
-              </div>
-            </>
-          ) : (
+          <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
             <MetricState status="loading" />
-          )}
-        </div>
+          </div>
+        )}
+        <AutomatedResponseStatus response={response} />
       </div>
 
       <div className="mt-3 rounded border border-zinc-200 dark:border-zinc-800">

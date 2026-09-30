@@ -1,4 +1,5 @@
 from backend.app.routers import ai as ai_router
+from engine.ai_explain import prompts
 from engine.ai_explain.schemas import Explain
 
 from .conftest import AGENT_KEY, DASHBOARD_KEY
@@ -157,6 +158,59 @@ def test_post_explain_second_call_is_cached_not_recomputed(client, monkeypatch):
     client.post("/ai/explain/inc-0003", headers=DASH)
 
     assert calls["n"] == 1
+
+
+def _save_stale_explain(client, incident_id="inc-0003"):
+    """A cached explain with no prompt_version at all -- the exact shape of
+    the real pre-existing fixture (data/incident_triage.json's inc-0003)
+    that motivated this fix."""
+    store = client.app.state.store
+    store.save_triage({
+        "incident_id": incident_id, "triage_time": "2026-09-13T10:16:00.000Z",
+        "verdict": "true_positive", "confidence": "high", "reason": "clear LSASS memory dump",
+        "model": "openai/deepseek-chat", "status": "ok",
+        "explain": {
+            "summary": "old", "objective": "old", "notable_details": [], "next_steps": [], "caveats": [],
+            "generated_time": "2026-09-13T10:17:00.000Z",
+        },
+    })
+
+
+def test_get_triage_marks_a_pre_versioning_cached_explain_as_stale(client):
+    _save_stale_explain(client)
+    r = client.get("/ai/triage/inc-0003", headers=DASH)
+    assert r.json()["explain"]["is_stale"] is True
+
+
+def test_post_explain_returns_stale_cached_explain_without_recomputing(client, monkeypatch):
+    _save_stale_explain(client)
+
+    def fail_if_called(incident, triage, response_actions):
+        raise AssertionError("a plain POST must never recompute, even when the cached explain is stale")
+
+    monkeypatch.setattr(ai_router.ai_explain, "explain_incident", fail_if_called)
+
+    r = client.post("/ai/explain/inc-0003", headers=DASH)
+    assert r.status_code == 200
+    assert r.json()["explain"]["summary"] == "old"
+    assert r.json()["explain"]["is_stale"] is True
+
+
+def test_post_explain_force_true_recomputes_a_stale_cached_explain(client, monkeypatch):
+    _save_stale_explain(client)
+
+    def fake_explain_incident(incident, triage, response_actions):
+        return Explain(
+            summary="fresh", objective="o", notable_details=[], next_steps=[], caveats=[],
+            generated_time="2026-09-28T00:00:00.000Z", prompt_version=prompts.EXPLAIN_PROMPT_VERSION,
+        )
+
+    monkeypatch.setattr(ai_router.ai_explain, "explain_incident", fake_explain_incident)
+
+    r = client.post("/ai/explain/inc-0003?force=true", headers=DASH)
+    assert r.status_code == 200
+    assert r.json()["explain"]["summary"] == "fresh"
+    assert r.json()["explain"]["is_stale"] is False
 
 
 def test_post_explain_502_when_llm_call_fails(client, monkeypatch):

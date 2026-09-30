@@ -1,13 +1,41 @@
+import Link from "next/link";
+
 import type { MetricsSummary } from "@/lib/types";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
-function Card({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
+function Card({
+  label,
+  tooltip,
+  href,
+  children,
+}: {
+  label: string;
+  tooltip?: string;
+  href?: string;
+  children: React.ReactNode;
+}) {
+  const body = (
+    <>
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        {label}
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </div>
       {children}
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block rounded border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">{body}</div>;
 }
 
 function formatSeconds(seconds: number): string {
@@ -43,16 +71,20 @@ export function KpiCards({ summary }: { summary: MetricsSummary | null }) {
 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <Card label="Alerts">
+      <Card label="Alerts" tooltip="Number of alerts raised by detection rules in this range." href="/alerts">
         <p className="text-2xl font-semibold">{summary.total_alerts.value}</p>
         {summary.alert_to_incident_ratio.status === "ok" && summary.alert_to_incident_ratio.value !== null && (
           <p className="text-xs text-zinc-500">{summary.alert_to_incident_ratio.value.toFixed(1)}:1 to incidents</p>
         )}
       </Card>
-      <Card label="Total incidents">
+      <Card
+        label="Total incidents"
+        tooltip="Number of correlated incidents raised in this range."
+        href="/incidents"
+      >
         <p className="text-2xl font-semibold">{summary.total_incidents.value}</p>
       </Card>
-      <Card label="MTTD">
+      <Card label="MTTD" tooltip="Average time from attack to detection." href="/incidents">
         {summary.mttd.status === "ok" && summary.mttd.value ? (
           <p className="text-2xl font-semibold">{formatSeconds(summary.mttd.value.mean)}</p>
         ) : summary.mttd.status === "pending_upstream" ? (
@@ -61,12 +93,16 @@ export function KpiCards({ summary }: { summary: MetricsSummary | null }) {
           <p className="text-2xl font-semibold text-zinc-400">—</p>
         )}
       </Card>
-      <Card label="MTTR">
+      <Card
+        label="MTTR"
+        tooltip="Average time from detection to a completed response action."
+        href="/incidents"
+      >
         {summary.mttr.status === "ok" && summary.mttr.value ? (
           <p className="text-2xl font-semibold">{formatSeconds(summary.mttr.value.mean)}</p>
         ) : (
           <p className="truncate text-sm text-zinc-500">
-            No live responses yet{dryRunCount > 0 ? ` (${dryRunCount} dry-run)` : ""}
+            No live responses yet{dryRunCount > 0 ? ` (${dryRunCount} in practice mode)` : ""}
           </p>
         )}
       </Card>

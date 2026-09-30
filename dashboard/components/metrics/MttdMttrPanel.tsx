@@ -1,4 +1,5 @@
 import type { MetricsSummary } from "@/lib/types";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
 function formatSeconds(seconds: number): string {
@@ -18,8 +19,9 @@ export function MttdMttrPanel({ summary }: { summary: MetricsSummary | null }) {
 
   return (
     <details className="rounded border border-zinc-200 dark:border-zinc-800">
-      <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+      <summary className="flex cursor-pointer select-none items-center gap-1 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
         Per-scenario breakdown
+        <InfoTooltip text="MTTD and MTTR broken down by matched attack scenario." />
       </summary>
       <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
         <table className="w-full text-sm">

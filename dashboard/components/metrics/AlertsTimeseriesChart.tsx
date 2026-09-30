@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { useTheme } from "@/components/ThemeProvider";
 import { SEVERITY_HEX, SEVERITY_ORDER } from "@/lib/severity";
 import type { MetricsTimeseries, TimeseriesBucket } from "@/lib/types";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 import { tooltipStyle } from "./chartTheme";
 
@@ -66,7 +67,10 @@ export function AlertsTimeseriesChart({ data }: { data: MetricsTimeseries | null
 
   return (
     <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Alerts over time</h3>
+      <h3 className="mb-3 flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        Alerts over time
+        <InfoTooltip text="Alert volume in this range, broken down by severity." />
+      </h3>
       {!data ? (
         <MetricState status="loading" />
       ) : data.buckets.status === "pending_upstream" ? (
