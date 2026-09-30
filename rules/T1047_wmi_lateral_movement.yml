@@ -1,0 +1,34 @@
+title: WMI Process Execution
+id: T1047_wmi_lateral_movement
+status: experimental
+description: >
+  Detects use of WMI to create processes, whether locally or against a remote
+  node (wmic process call create, /node:), and processes spawned by the WMI
+  provider host (WmiPrvSE.exe), a common local/lateral execution pattern.
+references:
+  - https://attack.mitre.org/techniques/T1047/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.execution
+  - attack.t1047
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_wmic:
+    Image|endswith: '\wmic.exe'
+    CommandLine|contains:
+      - 'process call create'
+      - '/node:'
+  selection_provider:
+    ParentImage|endswith: '\WmiPrvSE.exe'
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+      - '\cmd.exe'
+  condition: selection_wmic or selection_provider
+falsepositives:
+  - Monitoring or software-deployment tools that legitimately use WMI to run
+    commands; scope by account once identified.
+level: high
