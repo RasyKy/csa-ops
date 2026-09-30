@@ -235,6 +235,16 @@ One thing is skipped by default and needs extra setup to run:
 6. **`backend/app/intake/kafka_source.py` is still an empty stub.**
    Switching from polling to Kafka-based incident handoff needs Person A's
    actual topic name and message format, neither of which exist yet.
+7. **No case-management/status field exists anywhere in the incident
+   contract** (`backend/app/models/incident.py` has no lifecycle field at
+   all -- confirmed when this was first flagged for the metrics KPI row,
+   and again for the dashboard's "Open incidents" section). The dashboard
+   defines "open" as a fallback: an incident is open until its response
+   action has actually completed (`status` is `executed` or `failed`), not
+   merely been issued (`dashboard/components/metrics/NeedsAttention.tsx`,
+   `isOpenIncident`). If a real case status/assignee field is ever added to
+   the contract, that should become the primary source of truth and this
+   fallback should only apply where case data is missing.
 
 ## What's genuinely blocked, not just unbuilt
 

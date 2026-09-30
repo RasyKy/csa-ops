@@ -38,6 +38,8 @@ def test_openai_compatible_provider_uses_base_url_override(monkeypatch):
     assert captured["url"] == "https://api.deepseek.com/chat/completions"
     assert captured["json"]["model"] == "deepseek-chat"
     assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["json"]["temperature"] == 0
+    assert captured["json"]["max_tokens"] == 4096
     assert result.verdict == "true_positive"
 
 
@@ -66,6 +68,7 @@ def test_anthropic_provider_sends_a_generous_max_tokens(monkeypatch):
 
     assert captured["url"] == "https://api.anthropic.com/v1/messages"
     assert captured["json"]["max_tokens"] >= 4096
+    assert captured["json"]["temperature"] == 0
     assert result.verdict == "true_positive"
 
 
@@ -89,6 +92,31 @@ def test_openai_provider_defaults_to_real_openai_base_url(monkeypatch):
     llm_client.complete("s", "u", TriageVerdict)
 
     assert captured["url"] == "https://api.openai.com/v1/chat/completions"
+
+
+def test_ollama_provider_sends_temperature_and_max_tokens_as_options(monkeypatch):
+    # Ollama's /api/chat takes generation params nested under "options",
+    # not top-level max_tokens/temperature keys like the other two providers.
+    captured = {}
+
+    def fake_post(url, *, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        return _fake_response({
+            "message": {"content": '{"verdict": "true_positive", "confidence": "high", "reason": "clear"}'},
+        })
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("LLM_MODEL", "llama3")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+
+    result = llm_client.complete("s", "u", TriageVerdict)
+
+    assert captured["url"] == "http://localhost:11434/api/chat"
+    assert captured["json"]["options"]["temperature"] == 0
+    assert captured["json"]["options"]["num_predict"] == 4096
+    assert result.verdict == "true_positive"
 
 
 def test_unknown_provider_raises_llm_error(monkeypatch):

@@ -3,16 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { AlertsTimeseriesChart } from "@/components/metrics/AlertsTimeseriesChart";
+import { DataSourcesIndicator } from "@/components/metrics/DataSourcesIndicator";
 import { DetectionQualityPanel } from "@/components/metrics/DetectionQualityPanel";
+import { EmptyRangeBanner } from "@/components/metrics/EmptyRangeState";
 import { KpiCards } from "@/components/metrics/KpiCards";
 import { MitreHeatmap } from "@/components/metrics/MitreHeatmap";
 import { MttdMttrPanel } from "@/components/metrics/MttdMttrPanel";
+import { NeedsAttention } from "@/components/metrics/NeedsAttention";
 import { PipelineHealthStrip } from "@/components/metrics/PipelineHealthStrip";
 import { RangeSelector } from "@/components/metrics/RangeSelector";
 import { ResponsePanel } from "@/components/metrics/ResponsePanel";
 import { SeverityBreakdown } from "@/components/metrics/SeverityBreakdown";
 import { TriagePanel } from "@/components/metrics/TriagePanel";
+import { sinceForRange } from "@/lib/range";
 import type {
+  IncidentListItem,
   MetricsMitre,
   MetricsPipeline,
   MetricsRange,
@@ -24,8 +29,14 @@ import type {
 } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 3000;
+// GET /incidents caps limit at 500 (backend/app/routers/incidents.py) --
+// far more than enough to cover every incident in range at this project's
+// scale. This same fetch backs both the open-incident count and the
+// newest-incidents list, so it needs every incident in range, not just the
+// newest few.
+const INCIDENTS_FETCH_LIMIT = 500;
 
-interface MetricsState {
+interface PageState {
   summary: MetricsSummary | null;
   timeseries: MetricsTimeseries | null;
   top: MetricsTop | null;
@@ -33,9 +44,10 @@ interface MetricsState {
   response: MetricsResponse | null;
   triage: MetricsTriage | null;
   pipeline: MetricsPipeline | null;
+  incidents: IncidentListItem[] | null;
 }
 
-const EMPTY_STATE: MetricsState = {
+const EMPTY_STATE: PageState = {
   summary: null,
   timeseries: null,
   top: null,
@@ -43,18 +55,21 @@ const EMPTY_STATE: MetricsState = {
   response: null,
   triage: null,
   pipeline: null,
+  incidents: null,
 };
 
 export default function OverviewPage() {
   const [range, setRange] = useState<MetricsRange>("7d");
-  const [data, setData] = useState<MetricsState>(EMPTY_STATE);
+  const [data, setData] = useState<PageState>(EMPTY_STATE);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const qs = `?range=${range}`;
+    const since = sinceForRange(range);
+    const incidentsQs = new URLSearchParams({ limit: String(INCIDENTS_FETCH_LIMIT), ...(since ? { since } : {}) });
     try {
-      const [summary, timeseries, top, mitre, response, triage, pipeline] = await Promise.all([
+      const [summary, timeseries, top, mitre, response, triage, pipeline, incidents] = await Promise.all([
         fetch(`/api/metrics/summary${qs}`).then((r) => r.json()),
         fetch(`/api/metrics/timeseries${qs}`).then((r) => r.json()),
         fetch(`/api/metrics/top${qs}`).then((r) => r.json()),
@@ -62,8 +77,9 @@ export default function OverviewPage() {
         fetch(`/api/metrics/response${qs}`).then((r) => r.json()),
         fetch(`/api/metrics/triage${qs}`).then((r) => r.json()),
         fetch(`/api/metrics/pipeline`).then((r) => r.json()),
+        fetch(`/api/incidents?${incidentsQs.toString()}`).then((r) => r.json()),
       ]);
-      setData({ summary, timeseries, top, mitre, response, triage, pipeline });
+      setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents });
       setLastUpdated(new Date());
       setError(null);
     } catch {
@@ -78,39 +94,47 @@ export default function OverviewPage() {
     return () => clearInterval(interval);
   }, [load]);
 
+  const rangeIsEmpty =
+    data.summary !== null &&
+    data.summary.total_alerts.status !== "ok" &&
+    data.summary.total_incidents.status !== "ok";
+
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <h1 className="mb-4 text-xl font-semibold">Overview</h1>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">Overview</h1>
+        <DataSourcesIndicator summary={data.summary} mitre={data.mitre} pipeline={data.pipeline} />
+      </div>
       <RangeSelector range={range} onRangeChange={setRange} lastUpdated={lastUpdated} />
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {rangeIsEmpty && <EmptyRangeBanner range={range} onSwitchToAll={() => setRange("all")} />}
 
-      <KpiCards summary={data.summary} />
+      {/* Layout is identical across every range: sections always render in
+          the same positions, counts show 0 when empty (a real value),
+          averages show a placeholder instead. */}
+      <NeedsAttention incidents={data.incidents} response={data.response} />
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <KpiCards summary={data.summary} />
+        <MttdMttrPanel summary={data.summary} />
+      </div>
+
+      <section className="mb-6 grid gap-6 lg:grid-cols-[2fr_1fr]">
         <AlertsTimeseriesChart data={data.timeseries} />
-        <MitreHeatmap data={data.mitre} />
-      </section>
-
-      <section className="mt-6">
         <SeverityBreakdown timeseries={data.timeseries} top={data.top} />
       </section>
 
-      <section className="mt-6">
-        <MttdMttrPanel summary={data.summary} />
+      <section className="mb-6">
+        <MitreHeatmap data={data.mitre} />
       </section>
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-2">
+      <section className="mb-6 grid gap-4 lg:grid-cols-3">
         <ResponsePanel data={data.response} />
         <TriagePanel data={data.triage} />
-      </section>
-
-      <section className="mt-6">
         <DetectionQualityPanel top={data.top} />
       </section>
 
-      <section className="mt-6">
-        <PipelineHealthStrip data={data.pipeline} />
-      </section>
+      <PipelineHealthStrip data={data.pipeline} />
     </main>
   );
 }

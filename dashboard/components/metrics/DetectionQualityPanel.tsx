@@ -1,56 +1,46 @@
 import type { MetricsTop } from "@/lib/types";
+import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
+const TOP_N = 3;
+
+// Compact by design -- top N noisiest rules only, not the full table (this
+// sits in a 3-across bottom row with Response and AI triage).
 export function DetectionQualityPanel({ top }: { top: MetricsTop | null }) {
   const entries = top?.fp_rate_by_rule.status === "ok" ? Object.entries(top.fp_rate_by_rule.value) : [];
+  const topEntries = entries.sort(([, a], [, b]) => b.rate - a.rate).slice(0, TOP_N);
 
   return (
-    <div className="rounded border border-slate-200 p-4 dark:border-slate-800">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Detection quality: false-positive rate
+    <div className="rounded border border-zinc-200 p-3 dark:border-zinc-800">
+      <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Detection quality (FP rate)
+        <InfoTooltip text="Rules with the highest false-positive rate in this range." />
       </h3>
       {!top ? (
         <MetricState status="loading" />
-      ) : top.fp_rate_by_rule.status !== "ok" || entries.length === 0 ? (
-        <MetricState
-          status={top.fp_rate_by_rule.status}
-          noDataMessage="No alerts labeled false_positive/true_positive in this range yet."
-        />
+      ) : top.fp_rate_by_rule.status !== "ok" || topEntries.length === 0 ? (
+        <MetricState status={top?.fp_rate_by_rule.status ?? "no_data"} noDataMessage="No labeled alerts yet" />
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="pb-1 font-normal">Rule</th>
-              <th className="pb-1 text-right font-normal">Labeled alerts</th>
-              <th className="pb-1 text-right font-normal">False positives</th>
-              <th className="pb-1 text-right font-normal">FP rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries
-              .sort(([, a], [, b]) => b.rate - a.rate)
-              .map(([rule, stats]) => (
-                <tr key={rule} className="border-t border-slate-100 dark:border-slate-900">
-                  <td className="py-1">{rule}</td>
-                  <td className="py-1 text-right">{stats.total}</td>
-                  <td className="py-1 text-right">{stats.fp_count}</td>
-                  <td className="py-1 text-right">
-                    <span
-                      className={
-                        stats.rate >= 0.5
-                          ? "text-red-600 dark:text-red-400"
-                          : stats.rate > 0
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-slate-500"
-                      }
-                    >
-                      {(stats.rate * 100).toFixed(0)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <ul className="space-y-1.5 text-sm">
+          {topEntries.map(([rule, stats]) => (
+            <li key={rule} className="flex justify-between gap-2">
+              <span className="truncate" title={rule}>
+                {rule}
+              </span>
+              <span
+                className={
+                  stats.rate >= 0.5
+                    ? "shrink-0 text-red-600 dark:text-red-400"
+                    : stats.rate > 0
+                      ? "shrink-0 text-amber-600 dark:text-amber-400"
+                      : "shrink-0 text-zinc-500"
+                }
+              >
+                {(stats.rate * 100).toFixed(0)}%
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

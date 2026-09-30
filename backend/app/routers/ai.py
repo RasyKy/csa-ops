@@ -21,12 +21,13 @@ def get_triage(
     triage = store.get_triage(incident_id)
     if triage is None:
         raise HTTPException(status_code=404, detail="incident has not been triaged yet")
-    return triage
+    return ai_explain.annotate_staleness(triage)
 
 
 @router.post("/ai/explain/{incident_id}")
 def post_explain(
     incident_id: str,
+    force: bool = False,
     store=Depends(get_store),
     _key=Depends(require_dashboard_key),
 ):
@@ -40,14 +41,20 @@ def post_explain(
     if triage.get("status") != "ok":
         raise HTTPException(status_code=409, detail="triage failed; nothing to explain")
 
-    if triage.get("explain"):
-        return triage  # cached on the triage doc -- no repeat LLM call
+    if triage.get("explain") and not force:
+        # Cached on the triage doc -- no repeat LLM call. Even a stale
+        # cached explain is returned as-is here (annotated with is_stale
+        # so the dashboard can show a notice); only an explicit
+        # force=true request (the dashboard's "Regenerate" button)
+        # recomputes it. No path here ever regenerates on its own.
+        return ai_explain.annotate_staleness(triage)
 
     try:
-        result = ai_explain.explain_incident(incident, triage)
+        response_actions = store.list_response_actions(incident_id)
+        result = ai_explain.explain_incident(incident, triage, response_actions)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"explain failed: {exc}") from exc
 
     triage["explain"] = result.model_dump()
     store.save_triage(triage)
-    return triage
+    return ai_explain.annotate_staleness(triage)

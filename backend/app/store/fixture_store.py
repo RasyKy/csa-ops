@@ -30,8 +30,10 @@ class FixtureStore:
         else:
             self._triage = {}
 
-    def list_alerts(self, *, severity=None, host=None, limit=50, since=None):
-        items = _filtered(self._alerts, severity=severity, host=host, since=since, since_field="timestamp")
+    def list_alerts(self, *, severity=None, host=None, rule_id=None, limit=50, since=None):
+        items = _filtered(
+            self._alerts, severity=severity, host=host, rule_id=rule_id, since=since, since_field="timestamp"
+        )
         items.sort(key=lambda a: a["timestamp"], reverse=True)
         return items[:limit]
 
@@ -182,12 +184,14 @@ def _top_terms(items: list[dict], field: str, size: Optional[int]) -> list[dict]
     return [{"key": k, "count": c} for k, c in ranked]
 
 
-def _filtered(items: list[dict], *, severity, host, since, since_field: str) -> list[dict]:
+def _filtered(items: list[dict], *, severity, host, since, since_field: str, rule_id=None) -> list[dict]:
     result = list(items)
     if severity:
         result = [i for i in result if i["severity"] == severity]
     if host:
         result = [i for i in result if i["host"] == host]
+    if rule_id:
+        result = [i for i in result if i.get("rule_id") == rule_id]
     if since:
         result = [i for i in result if i[since_field] > since]
     return result

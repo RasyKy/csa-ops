@@ -121,6 +121,7 @@ def compute_triage_stats(triage_records: list[dict]) -> Optional[dict]:
         return None
 
     verdict_counts: dict[str, int] = {}
+    confidence_counts: dict[str, int] = {}
     confidence_values: list[int] = []
     latencies: list[float] = []
     failed_count = 0
@@ -134,9 +135,11 @@ def compute_triage_stats(triage_records: list[dict]) -> Optional[dict]:
         if verdict:
             verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
 
-        confidence = _CONFIDENCE_SCALE.get(record.get("confidence"))
+        confidence_label = record.get("confidence")
+        confidence = _CONFIDENCE_SCALE.get(confidence_label)
         if confidence is not None:
             confidence_values.append(confidence)
+            confidence_counts[confidence_label] = confidence_counts.get(confidence_label, 0) + 1
 
         started = record.get("triage_started_time")
         finished = record.get("triage_time")
@@ -145,6 +148,7 @@ def compute_triage_stats(triage_records: list[dict]) -> Optional[dict]:
 
     return {
         "verdict_counts": verdict_counts,
+        "confidence_counts": confidence_counts,
         "failed_count": failed_count,
         "total_count": len(triage_records),
         "avg_confidence": (sum(confidence_values) / len(confidence_values)) if confidence_values else None,

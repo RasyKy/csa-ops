@@ -1,9 +1,19 @@
 """triage_incident() behavior with a fake LLM client -- valid output,
 invalid output, timeouts, and a prompt-injection fixture. These test the
 pipeline's handling of LLM output, not a real model."""
-from engine.ai_explain import triage
+from engine.ai_explain import prompts, triage
 from engine.ai_explain.llm_client import LLMError
 from engine.ai_explain.schemas import TriageVerdict
+
+def test_triage_prompt_defines_verdict_and_confidence_criteria():
+    # Cheap regression guard: the rubric added after the audit found the
+    # model was given verdict/confidence labels with no criteria for
+    # choosing between them. Not a behavioral test (no LLM call) -- just
+    # makes sure the rubric text can't be silently reverted later.
+    assert "Verdict criteria" in prompts.TRIAGE_SYSTEM_PROMPT
+    assert "Confidence criteria" in prompts.TRIAGE_SYSTEM_PROMPT
+    assert "Missing data must lower your confidence" in prompts.TRIAGE_SYSTEM_PROMPT
+
 
 INCIDENT = {
     "incident_id": "inc-test",
