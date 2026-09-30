@@ -37,3 +37,5 @@ Thumbs.db
 
 # Claude
 CLAUDE.md
+# Generated pipeline output (regenerate with engine/pipeline.py)
+fixtures/*.generated.json

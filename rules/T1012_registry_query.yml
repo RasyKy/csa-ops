@@ -1,0 +1,31 @@
+title: Registry Query of Autorun/Sensitive Keys
+id: T1012_registry_query
+status: experimental
+description: >
+  Detects reg.exe querying autostart or sensitive registry locations
+  (Run keys, Services, Winlogon), a common discovery step used to enumerate
+  persistence and configuration before further action.
+references:
+  - https://attack.mitre.org/techniques/T1012/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.discovery
+  - attack.t1012
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_reg:
+    Image|endswith: '\reg.exe'
+    CommandLine|contains: ' query '
+  selection_key:
+    CommandLine|contains:
+      - 'CurrentVersion\Run'
+      - '\Services'
+      - 'Winlogon'
+  condition: selection_reg and selection_key
+falsepositives:
+  - Legitimate administrative or scripted inventory of registry keys; low
+    severity because query (read) activity is common.
+level: low

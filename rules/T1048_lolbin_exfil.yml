@@ -1,0 +1,47 @@
+title: LOLBin Network Egress to External Host
+id: T1048_lolbin_exfil
+status: experimental
+description: >
+  Detects a living-off-the-land binary (PowerShell, certutil, bitsadmin, curl,
+  wget) making an outbound network connection to a non-private address, a
+  common way to exfiltrate data or pull a payload over an alternative tool.
+  Connections to private/loopback ranges are filtered out.
+references:
+  - https://attack.mitre.org/techniques/T1048/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.exfiltration
+  - attack.t1048
+logsource:
+  product: windows
+  category: network_connection
+detection:
+  selection:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+      - '\certutil.exe'
+      - '\bitsadmin.exe'
+      - '\curl.exe'
+      - '\wget.exe'
+  filter_internal:
+    DestinationIp|startswith:
+      - '10.'
+      - '192.168.'
+      - '127.'
+      - '169.254.'
+      - '172.16.'
+      - '172.17.'
+      - '172.18.'
+      - '172.19.'
+      - '172.2'
+      - '172.30.'
+      - '172.31.'
+      - '::1'
+      - 'fe80:'
+  condition: selection and not filter_internal
+falsepositives:
+  - Legitimate admin scripts or update tooling reaching the internet via these
+    binaries; scope by destination once known-good endpoints are identified.
+level: high
