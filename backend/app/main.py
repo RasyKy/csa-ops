@@ -11,7 +11,7 @@ from engine.response import commander
 from .config import get_settings
 from .intake.watcher import IntakeWatcher
 from .metrics import DashboardVisibilityTracker
-from .routers import agent, ai, alerts, health, incidents, response
+from .routers import agent, ai, alerts, health, incidents, metrics, response
 from .store import build_store
 
 logging.basicConfig(level=logging.INFO)
@@ -58,3 +58,4 @@ app.include_router(incidents.router)
 app.include_router(agent.router)
 app.include_router(response.router)
 app.include_router(ai.router)
+app.include_router(metrics.router)

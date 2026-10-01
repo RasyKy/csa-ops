@@ -10,7 +10,7 @@ def test_first_get_incidents_logs_visibility_gap_per_incident(client, caplog):
         client.get("/incidents", headers=HEADERS)
 
     messages = [r.message for r in caplog.records if r.name == "csa_ops.metrics"]
-    assert len(messages) == 4  # one per fixture incident
+    assert len(messages) == 5  # one per fixture incident
     for message in messages:
         assert "NFR-4 dashboard_visible_time" in message
         assert "gap=" in message

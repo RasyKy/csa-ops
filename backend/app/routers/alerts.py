@@ -1,4 +1,4 @@
-"""GET /alerts?severity=&host=&limit=&since="""
+"""GET /alerts?severity=&host=&rule_id=&limit=&since="""
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -14,10 +14,11 @@ router = APIRouter()
 def list_alerts(
     severity: Optional[str] = None,
     host: Optional[str] = None,
+    rule_id: Optional[str] = None,
     limit: int = Query(50, ge=1, le=500),
     since: Optional[str] = None,
     store=Depends(get_store),
     _key=Depends(require_dashboard_key),
 ):
-    alerts = store.list_alerts(severity=severity, host=host, limit=limit, since=since)
+    alerts = store.list_alerts(severity=severity, host=host, rule_id=rule_id, limit=limit, since=since)
     return [Alert(**a).model_dump() for a in alerts]

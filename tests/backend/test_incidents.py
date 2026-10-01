@@ -7,7 +7,7 @@ def test_list_incidents_returns_all_fixtures_joined(client):
     r = client.get("/incidents", headers=HEADERS)
     assert r.status_code == 200
     data = r.json()
-    assert len(data) == 4
+    assert len(data) == 5
     for item in data:
         # No triage yet on a fresh store -- must be null, not absent.
         assert item["triage_verdict"] is None

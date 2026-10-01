@@ -3,9 +3,9 @@ import type { IncidentTriage } from "@/lib/types";
 
 export function TriagePanel({ triage }: { triage: IncidentTriage | null }) {
   return (
-    <div className="rounded border border-slate-200 p-4 dark:border-slate-800">
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">AI Triage</h3>
-      {!triage && <p className="text-sm text-slate-500">No triage yet.</p>}
+    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">AI Triage</h3>
+      {!triage && <p className="text-sm text-zinc-500">No triage yet.</p>}
       {triage?.status === "failed" && (
         <p className="text-sm text-red-600 dark:text-red-400">
           Triage failed (model unreachable or output invalid). Response actions were not affected.
@@ -25,7 +25,7 @@ export function TriagePanel({ triage }: { triage: IncidentTriage | null }) {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-slate-500">{label}</dt>
+      <dt className="text-zinc-500">{label}</dt>
       <dd className="text-right">{value}</dd>
     </div>
   );

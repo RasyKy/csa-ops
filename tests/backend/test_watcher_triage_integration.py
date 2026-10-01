@@ -2,6 +2,7 @@
 the response handler, so triage actually runs automatically on new
 incidents rather than only on demand."""
 import inspect
+import time
 
 from fastapi.testclient import TestClient
 
@@ -56,9 +57,20 @@ def test_watcher_auto_triages_new_incidents_alongside_response(tmp_path, monkeyp
 
     try:
         with TestClient(main_module.app) as client:
-            r = client.get("/incidents", headers=DASH)
-            items = r.json()
-            assert len(items) == 4
+            # The watcher's first poll now genuinely runs off the event loop
+            # (run_in_executor -- see watcher.py's fix for blocking the
+            # server during a real LLM call), so it's not guaranteed done by
+            # the time this first request lands. Poll briefly instead of
+            # asserting immediately.
+            items = None
+            for _ in range(50):
+                r = client.get("/incidents", headers=DASH)
+                items = r.json()
+                if all(item["triage_status"] is not None for item in items):
+                    break
+                time.sleep(0.05)
+
+            assert len(items) == 5
             for item in items:
                 assert item["triage_verdict"] == "needs_review"
                 assert item["triage_status"] == "ok"
@@ -72,7 +84,7 @@ def test_processing_same_incident_twice_through_the_watcher_does_not_duplicate_r
     # re-fired the commander, issuing a duplicate isolate_host for an
     # incident that already had one. Reproduce the exact scenario -- same
     # incident through the real watcher, twice -- and assert exactly one
-    # response_actions doc and one incident_triage record survive (rule 12).
+    # response_actions doc and one incident_triage record survive.
     from engine.ai_explain import triage as ai_triage
     from engine.ai_explain.schemas import TriageVerdict
 
@@ -99,16 +111,16 @@ def test_processing_same_incident_twice_through_the_watcher_does_not_duplicate_r
     watcher = IntakeWatcher(store=store, handlers=handlers, poll_seconds=60)
 
     first_batch = watcher.poll_once()
-    assert len(first_batch) == 4  # all 4 fixture incidents, first time through
+    assert len(first_batch) == 5  # all 5 fixture incidents, first time through
 
     # Simulate exactly what happened manually: clear intake_state so the
     # watcher's processed-set no longer knows about these incidents.
     store.save_intake_state({"watermark": None, "processed_ids": []})
 
     second_batch = watcher.poll_once()
-    assert len(second_batch) == 4  # the watcher re-offers them; the bug is what handlers do next
+    assert len(second_batch) == 5  # the watcher re-offers them; the bug is what handlers do next
 
-    assert len(calls) == 4  # not 8 -- triage was not re-run for already-triaged incidents
+    assert len(calls) == 5  # not 10 -- triage was not re-run for already-triaged incidents
 
     for incident in store.list_incidents(limit=10):
         incident_id = incident["incident_id"]

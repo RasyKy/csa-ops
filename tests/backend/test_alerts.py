@@ -6,7 +6,7 @@ HEADERS = {"X-API-Key": DASHBOARD_KEY}
 def test_list_alerts_returns_all_fixtures(client):
     r = client.get("/alerts", headers=HEADERS)
     assert r.status_code == 200
-    assert len(r.json()) == 7
+    assert len(r.json()) == 8
 
 
 def test_list_alerts_filters_by_severity(client):
@@ -21,6 +21,18 @@ def test_list_alerts_filters_by_host(client):
     data = r.json()
     assert len(data) == 2
     assert all(a["host"] == "WS04" for a in data)
+
+
+def test_list_alerts_filters_by_rule_id(client):
+    r = client.get("/alerts?rule_id=T1003_lsass_access", headers=HEADERS)
+    data = r.json()
+    assert len(data) >= 1
+    assert all(a["rule_id"] == "T1003_lsass_access" for a in data)
+
+
+def test_list_alerts_filters_by_rule_id_no_match(client):
+    r = client.get("/alerts?rule_id=does-not-exist", headers=HEADERS)
+    assert r.json() == []
 
 
 def test_list_alerts_respects_limit(client):

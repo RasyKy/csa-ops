@@ -3,6 +3,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from engine.ai_explain import explain as ai_explain
+
 from ..auth import require_dashboard_key
 from ..metrics import DashboardVisibilityTracker, get_visibility_tracker
 from ..models.graph import Graph, GraphNode
@@ -51,9 +53,10 @@ def get_incident(
         raise HTTPException(status_code=404, detail="incident not found")
 
     model = Incident(**incident)
+    triage = store.get_triage(incident_id)
     return {
         **model.model_dump(by_alias=True),
-        "triage": store.get_triage(incident_id),
+        "triage": ai_explain.annotate_staleness(triage) if triage is not None else None,
         "response_history": store.list_response_actions(incident_id),
     }
 

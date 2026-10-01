@@ -19,3 +19,4 @@ class Alert(BaseModel):
     ppid: int
     image: str
     command_line: Optional[str] = None
+    false_positive: Optional[bool] = None

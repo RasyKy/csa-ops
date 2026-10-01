@@ -18,9 +18,9 @@ export function Filters({
   return (
     <div className="mb-4 flex flex-wrap items-end gap-3">
       <label className="flex flex-col text-sm">
-        <span className="mb-1 text-slate-500">Severity</span>
+        <span className="mb-1 text-zinc-500">Severity</span>
         <select
-          className="rounded border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900"
+          className="rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
           value={severity}
           onChange={(e) => onSeverityChange(e.target.value as Severity | "")}
         >
@@ -33,9 +33,9 @@ export function Filters({
         </select>
       </label>
       <label className="flex flex-col text-sm">
-        <span className="mb-1 text-slate-500">Host</span>
+        <span className="mb-1 text-zinc-500">Host</span>
         <input
-          className="rounded border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900"
+          className="rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
           value={host}
           onChange={(e) => onHostChange(e.target.value)}
           placeholder="WS01"

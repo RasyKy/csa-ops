@@ -80,7 +80,16 @@ def _call_anthropic(system, user, model, api_key, base_url, timeout_seconds) -> 
         headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
         json={
             "model": model,
-            "max_tokens": 1024,
+            # 4096, not the previous 1024: shared between triage's tiny
+            # schema and explain's much larger one (summary, objective,
+            # notable_details[], next_steps[], caveats[]). 1024 could
+            # truncate explain's output, producing invalid JSON and a
+            # schema-validation failure unrelated to incident complexity.
+            "max_tokens": 4096,
+            # 0, not the provider default (often 1.0): triage/explain are
+            # classification-adjacent tasks where run-to-run consistency
+            # matters more than creative variation.
+            "temperature": 0,
             "system": system,
             "messages": [{"role": "user", "content": user}],
         },
@@ -99,6 +108,8 @@ def _call_openai_compatible(system, user, model, api_key, base_url, timeout_seco
             "model": model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "response_format": {"type": "json_object"},
+            "max_tokens": 4096,
+            "temperature": 0,
         },
         timeout=timeout_seconds,
     )
@@ -114,6 +125,7 @@ def _call_ollama(system, user, model, base_url, timeout_seconds) -> str:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "format": "json",
             "stream": False,
+            "options": {"num_predict": 4096, "temperature": 0},
         },
         timeout=timeout_seconds,
     )
