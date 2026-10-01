@@ -1,0 +1,33 @@
+title: Encoded PowerShell Command
+id: T1059.001_encoded_powershell
+status: experimental
+description: >
+  Detects PowerShell launched with an encoded command parameter
+  (-EncodedCommand / -enc / -e), a common way to obfuscate a script so it does
+  not appear in plain text on the command line.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.execution
+  - attack.t1059.001
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_img:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+  selection_enc:
+    CommandLine|contains:
+      - ' -enc '
+      - ' -encodedcommand '
+      - ' -e '
+      - ' -ec '
+  condition: selection_img and selection_enc
+falsepositives:
+  - Administrative tooling that legitimately passes encoded commands; add the
+    parent process to a filter once identified.
+level: high

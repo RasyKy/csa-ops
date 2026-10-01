@@ -5,6 +5,7 @@ naturally exercise the ok path, without needing special test data."""
 import pytest
 
 from backend.app.config import get_settings
+from backend.app.routers import metrics as metrics_router
 from engine.response import commander
 
 from .conftest import AGENT_KEY, DASHBOARD_KEY
@@ -174,8 +175,11 @@ def test_range_30d_vs_all_distinguishes_the_older_fixture(client):
 
 # --- /metrics/mitre ---
 
-def test_mitre_coverage_status_pending_upstream_when_rules_dir_empty(client):
-    # rules/ genuinely has no .yml files on this branch.
+def test_mitre_coverage_status_pending_upstream_when_rules_dir_empty(client, tmp_path, monkeypatch):
+    # rules/ now has real .yml files from Person A's detection engine, so
+    # this behavior (no rules parsed yet) has to be simulated rather than
+    # relying on the ambient repo state the way it could before integration.
+    monkeypatch.setattr(metrics_router, "_RULES_DIR", tmp_path)
     r = client.get("/metrics/mitre?range=all", headers=DASH)
     body = r.json()
     assert body["coverage_status"] == "pending_upstream"

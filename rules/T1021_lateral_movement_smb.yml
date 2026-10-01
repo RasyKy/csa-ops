@@ -1,0 +1,32 @@
+title: PsExec Lateral Movement
+id: T1021_lateral_movement_smb
+status: experimental
+description: >
+  Detects lateral movement over SMB admin shares using PsExec-style tooling:
+  the PSEXESVC service binary appearing on a target host, or a PsExec client
+  invoked against a remote UNC path.
+references:
+  - https://attack.mitre.org/techniques/T1021/002/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.lateral_movement
+  - attack.t1021.002
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_service:
+    Image|endswith:
+      - '\PSEXESVC.exe'
+      - '\PAEXEC.exe'
+  selection_client:
+    Image|endswith:
+      - '\psexec.exe'
+      - '\psexec64.exe'
+    CommandLine|contains: '\\'
+  condition: selection_service or selection_client
+falsepositives:
+  - Administrators legitimately using PsExec for remote management; scope by
+    source host once the admin jump box is known.
+level: high

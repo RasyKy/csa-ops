@@ -1,0 +1,31 @@
+title: Registry Run Key Persistence
+id: T1547.001_run_key_persistence
+status: experimental
+description: >
+  Detects creation or modification of a Registry Run / RunOnce key, a common
+  autostart persistence mechanism. Trusted installers are filtered out.
+references:
+  - https://attack.mitre.org/techniques/T1547/001/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.persistence
+  - attack.t1547.001
+logsource:
+  product: windows
+  category: registry_event
+detection:
+  selection:
+    TargetObject|contains:
+      - '\CurrentVersion\Run\'
+      - '\CurrentVersion\RunOnce\'
+      - '\CurrentVersion\RunServices\'
+  filter_installer:
+    Image|endswith:
+      - '\msiexec.exe'
+      - '\TrustedInstaller.exe'
+  condition: selection and not filter_installer
+falsepositives:
+  - Legitimate software adding a startup entry during install; short-lived and
+    usually tied to msiexec / TrustedInstaller (already filtered).
+level: high

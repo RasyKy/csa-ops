@@ -98,6 +98,7 @@ def to_normalized_event(normalized):
         pid=normalized.get("process_pid"),
         parent_process_name=normalized.get("parent_process_name"),
         parent_pid=normalized.get("parent_process_pid"),
+        command_line=normalized.get("command_line"),
         dest_ip=normalized.get("dest_ip"),
         dest_port=normalized.get("dest_port"),
         file_path=normalized.get("target_file"),
