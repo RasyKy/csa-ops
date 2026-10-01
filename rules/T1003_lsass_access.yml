@@ -1,0 +1,32 @@
+title: LSASS Memory Access
+id: T1003_lsass_access
+status: experimental
+description: >
+  Detects a process opening a handle to lsass.exe, the classic step before
+  dumping credentials from LSASS memory. A small set of known-good system
+  accessors is filtered out.
+references:
+  - https://attack.mitre.org/techniques/T1003/001/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+logsource:
+  product: windows
+  category: process_access
+detection:
+  selection:
+    TargetImage|endswith: '\lsass.exe'
+  filter_system:
+    SourceImage|endswith:
+      - '\wininit.exe'
+      - '\csrss.exe'
+      - '\services.exe'
+      - '\MsMpEng.exe'
+      - '\wmiprvse.exe'
+  condition: selection and not filter_system
+falsepositives:
+  - Endpoint protection or backup agents that read LSASS; add them to
+    filter_system once their image path is confirmed.
+level: high

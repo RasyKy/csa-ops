@@ -21,6 +21,11 @@ class NormalizedEvent:
     parent_process_name: Optional[str] = None
     parent_pid: Optional[int] = None
 
+    # Present on process_start (Sysmon EventID 1). The single most common
+    # signal detection rules and AI triage rely on. normalize() already
+    # extracts it from CommandLine; to_normalized_event() maps it through.
+    command_line: Optional[str] = None
+
     # event_type == "network_connection"
     dest_ip: Optional[str] = None
     dest_port: Optional[int] = None

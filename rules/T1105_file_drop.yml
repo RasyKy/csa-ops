@@ -1,0 +1,38 @@
+title: Executable Dropped to User-Writable Path
+id: T1105_file_drop
+status: experimental
+description: >
+  Detects an executable or script file being written into a user-writable
+  location (Temp, AppData, Downloads, Public, ProgramData), a frequent step
+  when an attacker transfers a tool onto the host before running it.
+references:
+  - https://attack.mitre.org/techniques/T1105/
+author: Person A (Chhay Lyhour)
+date: 2026/09/30
+tags:
+  - attack.command_and_control
+  - attack.t1105
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains:
+      - '\Temp\'
+      - '\AppData\'
+      - '\Downloads\'
+      - '\Public\'
+      - '\ProgramData\'
+    TargetFilename|endswith:
+      - '.exe'
+      - '.dll'
+      - '.scr'
+      - '.ps1'
+      - '.bat'
+      - '.vbs'
+      - '.js'
+  condition: selection
+falsepositives:
+  - Installers and updaters that stage payloads in Temp/ProgramData; tune by
+    writing process once the common ones are known.
+level: medium
