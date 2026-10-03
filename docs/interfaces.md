@@ -10,26 +10,31 @@ whoever owns ingestion can actually see it.
 
 An audit of `RasyKy/csa-ops` found real, working ingestion code
 (`engine/normalizer/consumer.py`, `schema.py`, `winlogbeat.yml`,
-`sysmonconfig.xml`) on the **`dev`** branch, not `main`. `main` is 3 commits
-behind and does not have it. Confirm with the team which branch is the actual
-base before building anything.
+`sysmonconfig.xml`) on the **`dev`** branch, not `main`. Both `main` and `dev`
+have since merged this in (Person A's detection/correlation engine is also
+merged in now).
 
 1. **Real index name is `logs-normalized`**, not `events`. Section 4.1 below
    and any query code should target this name until/unless it's renamed.
 2. **Real normalized schema** (`engine/normalizer/schema.py`, dataclass
    `NormalizedEvent`): `timestamp, host, user, event_type, process_name, pid,
    parent_process_name, parent_pid, dest_ip, dest_port, file_path,
-   registry_key, target_process_name, target_pid`. `event_type` is one of
-   `process_start, network_connection, file_event, registry_event,
-   process_access`. No `command_line` field exists on the stored document.
-3. **Bug to flag to whoever owns ingestion, not to fix ourselves:**
-   `consumer.py`'s `normalize()` does extract `CommandLine` into a local
-   dict, but `to_normalized_event()` never maps it onto `NormalizedEvent` —
-   it's silently dropped before the ES write. Command-line text is the
-   single most common signal Sigma rules and AI triage rely on. This blocks
-   accurately populating `chain.nodes[].command_line` below until it's fixed
-   upstream. Treat that field as optional/nullable in every consumer
-   (dashboard, AI prompt) until it is.
+   registry_key, target_process_name, target_pid, command_line`. `event_type`
+   is one of `process_start, network_connection, file_event, registry_event,
+   process_access`.
+3. **`command_line` — fixed.** `consumer.py`'s `normalize()` already
+   extracted `CommandLine` into a local dict; `to_normalized_event()` now
+   maps it onto `NormalizedEvent.command_line` too, so it reaches
+   `logs-normalized`. Verified end-to-end against a real broker: published a
+   test `Process Create` event to Kafka, confirmed the consumer's `poll()`
+   loop received it and `to_normalized_event()` produced a `NormalizedEvent`
+   with `command_line` intact. Detection (`engine/detection/engine.py`) and
+   correlation (`engine/correlation/correlator.py`) both pass it through to
+   `alerts[].command_line` and `chain.nodes[].command_line` unchanged, so the
+   "aspirational" caveat on that field below no longer applies going forward
+   — treat it as present for any event normalized by this consumer from now
+   on, still nullable only for historical/replayed data captured before this
+   fix.
 
 Also found, not blocking B but worth relaying to whoever owns infra:
 `docker-compose.yml`'s `KAFKA_ADVERTISED_LISTENERS` is pinned to
@@ -110,14 +115,15 @@ not a code change.
 ```
 
 `severity` enum: `low | medium | high | critical`. `matched_scenario` may be
-`null`; the policy must handle that. `chain.nodes[].command_line` is
-aspirational: the current `logs-normalized` documents do not carry it (see
-the audit findings above). Treat it as optional/nullable in every consumer
-(dashboard, AI prompt) until ingestion fixes it, rather than assuming it's
-always present. `targets` is what the response engine acts on; if A cannot
-produce it, B derives it from `chain.nodes` (pids from nodes, ips from
-network events, paths from file events). `relation` enum: `parent | network
-| file | registry`.
+`null`; the policy must handle that. `chain.nodes[].command_line` is fixed
+upstream (see the audit findings above) — still treat it as nullable for
+any event normalized before the fix landed, but it is populated end-to-end
+for new events. `targets` is confirmed populated by the correlation engine
+(`engine/correlation/correlator.py`'s `_targets()`: pids of alerting
+processes, remote IPs from network events, file paths from file events) —
+B does not need its own derivation fallback for live data, though keeping
+one as a defensive fallback for a malformed/future incident doc is still
+reasonable. `relation` enum: `parent | network | file | registry`.
 
 ### 4.4 Incident handoff (A to B)
 
@@ -240,43 +246,62 @@ A's `alerts`/`incidents`.
 **ATT&CK coverage** comes from two places, joined at request time: which
 techniques actually **fired** (from alert data, live) and which are
 **covered** by a rule (parsed read-only from `rules/*.yml`'s Sigma `tags`,
-e.g. `attack.t1003.001`). `rules/` has no `.yml` files yet on this branch,
-so coverage currently reports `pending_upstream` -- not "0 techniques
-covered" -- until Person A adds real rules. There is no third "not
-covered" state: that would need MITRE's full ~600-technique catalog, which
-isn't bundled in this project.
+e.g. `attack.t1003.001`). `rules/` now has Person A's 8 real Sigma rules, so
+coverage reports real data, not `pending_upstream`. Note the granularity
+mismatch this surfaced: rule tags use sub-technique IDs (e.g.
+`attack.t1003.001` -> `T1003.001`), and those sub-technique IDs propagate
+verbatim into `alerts[].technique` and `incidents[].techniques[]` — they are
+not collapsed to the parent technique anywhere server-side. The dashboard's
+`MitreHeatmap` technique-label lookup now falls back to the parent
+technique's label when the sub-technique isn't in its own label dictionary
+(`T1003.001` shows "T1003.001 OS Credential Dumping"), so a label is never
+just a bare unlabeled ID, but the IDs themselves are still sub-technique
+granularity, not parent. There is no third "not covered" state: that would
+need MITRE's full ~600-technique catalog, which isn't bundled in this
+project.
 
 ## Open questions for Person A
 
-- [ ] Scenario naming: are `credential_dump_chain`, `exfiltration_chain`,
-      `malware_drop_chain`, `lateral_movement_chain` the actual
-      `matched_scenario` values your correlation engine will emit, or
-      placeholders? B's `policy.yaml` (`by_scenario`) keys off these exact
-      strings.
-- [ ] Will `targets` (4.3) actually be populated by the correlation engine,
-      or should B always derive it from `chain.nodes` itself?
+- [x] Scenario naming: confirmed matching. `engine/correlation/risk.py`'s
+      `_SCENARIO_RULES` emits exactly `credential_dump_chain`,
+      `lateral_movement_chain`, `exfiltration_chain`, `malware_drop_chain` --
+      the same four strings `policy.yaml`'s `by_scenario` keys off, verified
+      by reading both files side by side.
+- [x] `targets` (4.3): confirmed populated by the correlation engine.
+      `engine/correlation/correlator.py`'s `_targets()` derives `pids`,
+      `remote_ips`, `file_paths` from the cluster for every incident; B does
+      not need to derive it itself for live data.
 - [ ] Incident handoff (4.4): will you publish to a Kafka topic
       (`incidents.raised`), or should B only ever poll the `incidents`
       index? If Kafka, confirm the topic name and that the payload is
-      identical to the polled document.
+      identical to the polled document. Still open --
+      `backend/app/intake/kafka_source.py` is still an empty stub.
 - [ ] `attack_action_time` (needed to close MTTD, see the Metrics section
       above): where does this actually get logged? Person C's attack
       script, joined onto the incident by your correlation engine? A
-      separate index? There is no contract field or index for it right
-      now -- MTTD support in the metrics page is built but reports
-      `pending_upstream` until this is confirmed.
+      separate index? **Still needed:** there is no contract field or index
+      for this anywhere in the merged code (checked `engine/correlation/` and
+      `engine/detection/` directly) -- MTTD support in the metrics page is
+      built but reports `pending_upstream` until this is confirmed and
+      populated on real data.
 - [ ] `false_positive` label on the alert document (4.2, new field for the
       Metrics section above): will detection tuning ever set this, and if
       so where -- written by A directly, or a separate analyst-feedback
-      loop? B's false-positive-rate calc treats it as optional per-alert
-      and excludes unlabeled alerts from the rate, so this can be answered
-      whenever it's convenient, not a blocker.
+      loop? **Still needed:** `engine/detection/engine.py`'s `_alert()` does
+      not set this key at all (confirmed by reading the function) -- every
+      alert the real engine produces omits the field entirely, so B's
+      false-positive-rate calc currently excludes 100% of real alerts from
+      that denominator, not just the unlabeled minority it was designed for.
+      Not a blocker (the calc already treats it as optional), but worth
+      flagging since the gap is total, not partial.
 
 ## Open questions for whoever owns ingestion
 
-- [ ] `consumer.py` extracts `CommandLine` in `normalize()` but drops it in
-      `to_normalized_event()` — it never reaches `logs-normalized`. Can this
-      be fixed upstream? Detection rules and AI triage both need it.
+- [x] `consumer.py` extracts `CommandLine` in `normalize()` but drops it in
+      `to_normalized_event()` — fixed. `to_normalized_event()` now maps it
+      onto `NormalizedEvent.command_line`; verified against a real Kafka
+      broker (published a test event, confirmed the consumer decoded
+      `command_line` intact end-to-end).
 - [ ] `docker-compose.yml`'s `KAFKA_ADVERTISED_LISTENERS` is pinned to
       `localhost:9092`. Once Winlogbeat runs on a separate Machine 1, produce
       calls will fail after the initial connection. Needs to advertise the
@@ -284,3 +309,9 @@ isn't bundled in this project.
 - [ ] There is no Elasticsearch index template for `logs-normalized`. Fields
       like `dest_ip` are whatever dynamic mapping guesses on first write.
       Should one be added before Phase 6 integration?
+- [ ] New, not yet relayed: `kafka-python==2.0.2` does not import on Python
+      3.12+ (its vendored `six` depends on the `imp` module, removed in
+      3.12). This repo's `engine/normalizer/consumer.py` has been switched to
+      `confluent-kafka==2.15.1`, which ships prebuilt wheels and has no such
+      issue -- update any other environment/doc that still assumes
+      `kafka-python`.

@@ -58,7 +58,7 @@ function tacticSortKey(tactic: string): number {
 }
 
 function techniqueLabel(id: string): string {
-  const name = TECHNIQUE_NAMES[id];
+  const name = TECHNIQUE_NAMES[id] ?? TECHNIQUE_NAMES[id.split(".")[0]];
   return name ? `${id} ${name}` : id;
 }
 

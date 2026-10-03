@@ -1,3 +1,5 @@
 # engine/normalizer/consumer.py
-kafka-python==2.0.2       # imported as `kafka` (KafkaConsumer)
+confluent-kafka==2.15.1   # imported as `confluent_kafka` (Consumer). kafka-python 2.0.2 does not
+                          # import on Python 3.12+ (vendored `six` relies on the removed `imp`
+                          # module); confluent-kafka ships prebuilt wheels and has no such issue.
 elasticsearch==8.13.2     # `elasticsearch` + `elasticsearch.helpers.bulk`; matches ES server in docker-compose.yml

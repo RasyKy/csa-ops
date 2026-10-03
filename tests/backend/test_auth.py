@@ -36,3 +36,42 @@ def test_alerts_rejects_agent_key(client):
 def test_alerts_accepts_dashboard_key(client):
     r = client.get("/alerts", headers={"X-API-Key": DASHBOARD_KEY})
     assert r.status_code == 200
+
+
+def test_incident_report_requires_key(client):
+    assert client.get("/incidents/inc-0003/report").status_code == 401
+
+
+def test_incident_report_rejects_wrong_key(client):
+    r = client.get("/incidents/inc-0003/report", headers={"X-API-Key": "wrong"})
+    assert r.status_code == 403
+
+
+def test_incident_report_rejects_agent_key(client):
+    r = client.get("/incidents/inc-0003/report", headers={"X-API-Key": AGENT_KEY})
+    assert r.status_code == 403
+
+
+def test_incident_report_accepts_dashboard_key(client):
+    r = client.get("/incidents/inc-0003/report", headers={"X-API-Key": DASHBOARD_KEY})
+    assert r.status_code == 200
+
+
+def test_incident_report_pdf_requires_key(client):
+    assert client.get("/incidents/inc-0003/report?format=pdf").status_code == 401
+
+
+def test_incident_report_pdf_rejects_wrong_key(client):
+    r = client.get("/incidents/inc-0003/report?format=pdf", headers={"X-API-Key": "wrong"})
+    assert r.status_code == 403
+
+
+def test_incident_report_pdf_rejects_agent_key(client):
+    r = client.get("/incidents/inc-0003/report?format=pdf", headers={"X-API-Key": AGENT_KEY})
+    assert r.status_code == 403
+
+
+def test_incident_report_pdf_accepts_dashboard_key(client):
+    r = client.get("/incidents/inc-0003/report?format=pdf", headers={"X-API-Key": DASHBOARD_KEY})
+    assert r.status_code == 200
+

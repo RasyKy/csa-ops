@@ -1,30 +1,43 @@
+import React from "react";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Time } from "@/components/ui/Time";
 import { describeResponseAction } from "@/lib/responseWording";
 import type { ResponseAction } from "@/lib/types";
 
-function formatTime(timestamp: string | null): string | null {
-  if (!timestamp) return null;
-  const date = new Date(timestamp);
-  return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString();
-}
-
 export function ResponseHistoryPanel({ history }: { history: ResponseAction[] }) {
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">Response history</h3>
+    <Card>
+      <CardHeader title="Response history" />
       {history.length === 0 ? (
-        <p className="text-sm text-zinc-500">No response actions yet.</p>
+        <CardBody>
+          <p className="text-sm text-ink-subtle">No response actions yet.</p>
+        </CardBody>
       ) : (
-        <ul className="space-y-2 text-sm">
+        <ul className="divide-y divide-line">
           {history.map((a) => (
-            <li key={a.action_id}>
-              <p>{describeResponseAction(a)}</p>
-              {formatTime(a.command_issued_time) && (
-                <p className="text-xs text-zinc-500">{formatTime(a.command_issued_time)}</p>
+            <li
+              key={a.action_id}
+              className="flex items-start justify-between gap-4 px-4 py-3"
+            >
+              <div className="min-w-0 w-full">
+                <p className="text-sm text-ink">{describeResponseAction(a)}</p>
+                {a.command_issued_time && (
+                  <p className="mt-0.5 text-xs text-ink-subtle">
+                    <Time iso={a.command_issued_time} />
+                  </p>
+                )}
+              </div>
+              {a.mode === "live" && (
+                <div className="shrink-0">
+                  <Badge tone="danger">Live</Badge>
+                </div>
               )}
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }
+
