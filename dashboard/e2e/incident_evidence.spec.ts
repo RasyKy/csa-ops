@@ -1,6 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
 import { expect, test, type Page } from "@playwright/test";
+import {
+  entitiesOf,
+  isCheckedKind,
+  toMarkdown,
+} from "../lib/explainEntities";
 
 // Load fixture data once
 const FIXTURES_PATH = path.join(__dirname, "../../fixtures/incidents.json");
@@ -315,10 +320,10 @@ test.describe("AI analysis", () => {
     const cardEl = page.locator('[aria-busy="true"]');
     await expect(cardEl).toBeVisible();
 
-    // After loading: 5 sections, Regenerate button, footer contains 'Generated'
+    // After loading: 4 sections, Regenerate button, footer contains 'Generated'
     await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
     const sections = page.locator("details");
-    await expect(sections).toHaveCount(5);
+    await expect(sections).toHaveCount(4);
     await expect(page.locator('button:has-text("Regenerate")')).toBeVisible();
     await expect(page.locator('text=Generated')).toBeVisible();
     // Footer does not contain raw 'openai/'
@@ -359,7 +364,7 @@ test.describe("AI analysis", () => {
 
     // Notice replaced with analysis
     await expect(tryAgainBtn).not.toBeVisible();
-    await expect(page.locator("details")).toHaveCount(5);
+    await expect(page.locator("details")).toHaveCount(4);
   });
 
   test("inc-0003 stale explanation", async ({ page }) => {
@@ -414,18 +419,14 @@ test.describe("AI analysis", () => {
     const regenBtns = page.locator('button:has-text("Regenerate")');
     await expect(regenBtns).toHaveCount(1);
 
-    // 5 <details> sections
+    // 4 <details> sections
     const details = page.locator("details");
-    await expect(details).toHaveCount(5);
+    await expect(details).toHaveCount(4);
 
-    // First two sections (Summary and Likely objective) are open by default
-    const firstDetails = details.nth(0);
-    const secondDetails = details.nth(1);
-    await expect(firstDetails).toHaveAttribute("open", "");
-    await expect(secondDetails).toHaveAttribute("open", "");
-    // Third is closed
-    const thirdDetails = details.nth(2);
-    await expect(thirdDetails).not.toHaveAttribute("open", "");
+    // All four sections are open by default
+    for (let i = 0; i < 4; i++) {
+      await expect(details.nth(i)).toHaveAttribute("open", "");
+    }
 
     // Summaries have 0px border (single divider comes from divide-y on details)
     const detailsCount = await details.count();
@@ -434,51 +435,56 @@ test.describe("AI analysis", () => {
       expect(parseFloat(summaryBorderW)).toBe(0);
     }
 
-    // Single divider rect-based check: gap between notice region and first summary has exactly one 1px border
+    // Single divider rect-based check: single 1px divider between preceding region and summary
     const dividerCheck = await page.evaluate(() => {
       const notices = Array.from(document.querySelectorAll(".p-4:has(.rounded-md)"));
       const lastNotice = notices[notices.length - 1];
+      const strip = document.querySelector(".border-b.border-line.bg-surface-subtle");
       const firstSummary = document.querySelector("summary");
-      if (!lastNotice || !firstSummary) return null;
+      if (!firstSummary) return null;
 
-      const nRect = lastNotice.getBoundingClientRect();
+      const preceding = strip ?? lastNotice;
+      if (!preceding) return null;
+
+      const pRect = preceding.getBoundingClientRect();
       const sRect = firstSummary.getBoundingClientRect();
       const firstDetails = firstSummary.closest("details");
       if (!firstDetails) return null;
 
-      const dRect = firstDetails.getBoundingClientRect();
       const csDetails = window.getComputedStyle(firstDetails);
-      const csNotice = window.getComputedStyle(lastNotice);
+      const csPreceding = window.getComputedStyle(preceding);
       const csSummary = window.getComputedStyle(firstSummary);
+      const csContainer = firstDetails.parentElement
+        ? window.getComputedStyle(firstDetails.parentElement)
+        : null;
 
       return {
-        gap: sRect.top - nRect.bottom,
-        detailsBorderTop: parseFloat(csDetails.borderTopWidth),
-        noticeBorderBottom: parseFloat(csNotice.borderBottomWidth),
+        gap: sRect.top - pRect.bottom,
+        precedingBorderBottom: parseFloat(csPreceding.borderBottomWidth),
+        detailsBorderTop:
+          parseFloat(csDetails.borderTopWidth) +
+          (csContainer ? parseFloat(csContainer.borderTopWidth) : 0),
         summaryBorderTop: parseFloat(csSummary.borderTopWidth),
-        detailsTop: dRect.top,
-        noticeBottom: nRect.bottom,
       };
     });
 
     expect(dividerCheck).not.toBeNull();
-    // Exactly one 1px border on details, none on notice bottom or summary top
-    expect(dividerCheck!.detailsBorderTop).toBe(1);
-    expect(dividerCheck!.noticeBorderBottom).toBe(0);
+    // Exactly one 1px divider between preceding region and summary
     expect(dividerCheck!.summaryBorderTop).toBe(0);
-    // Gap between notice bottom and summary top is exactly 1px
+    expect(dividerCheck!.precedingBorderBottom + dividerCheck!.detailsBorderTop).toBe(1);
     expect(Math.round(dividerCheck!.gap)).toBe(1);
 
     // Toggle section: clicking changes open state and chevron transform
+    const thirdDetails = details.nth(2);
     const thirdSummary = thirdDetails.locator("summary");
-    const chevronBefore = await thirdDetails.locator("summary svg").evaluate((el) => window.getComputedStyle(el).transform);
+    const chevronBefore = await thirdDetails.locator("summary svg.lucide-chevron-right").evaluate((el) => window.getComputedStyle(el).transform);
     await thirdSummary.click();
     await page.waitForTimeout(50);
     const isOpen = await thirdDetails.evaluate((el) => (el as HTMLDetailsElement).open);
-    expect(isOpen).toBe(true);
-    const chevronAfter = await thirdDetails.locator("summary svg").evaluate((el) => window.getComputedStyle(el).transform);
+    expect(isOpen).toBe(false);
+    const chevronAfter = await thirdDetails.locator("summary svg.lucide-chevron-right").evaluate((el) => window.getComputedStyle(el).transform);
     console.log(`[inc-0003 stale] Chevron before: ${chevronBefore}, after: ${chevronAfter}`);
-    // After opening, chevron should be rotated (transform should differ)
+    // After closing, chevron should rotate back (transform should differ)
     expect(chevronAfter).not.toBe(chevronBefore);
 
     // Assert custom node element count equals node count, and no default nodes exist
@@ -686,4 +692,368 @@ test.describe("Event timeline -v5 captures", () => {
     }
   }
 });
+
+// Step 9a Mock data
+const RICH_EXPLAIN_RESPONSE = {
+  incident_id: "inc-0004",
+  triage_time: "2026-10-01T00:00:00.000Z",
+  triage_started_time: "2026-10-01T00:00:00.000Z",
+  verdict: "likely_true_positive",
+  confidence: "high",
+  reason: "Rich mock reason",
+  model: "deepseek/deepseek-chat",
+  status: "ok",
+  explain: {
+    summary:
+      "Host WS01 observed user CORP\\alice executing C:\\Users\\alice\\AppData\\Local\\Temp\\lsass.dmp. communicating with 192.168.1.50 using technique T1059.001.",
+    objective: "Perform lateral movement and credential dumping.",
+    next_steps: [
+      "Isolate host WS01 immediately",
+      "Revoke credentials for CORP\\alice",
+      "Block traffic to 192.168.1.50 at firewall",
+      "Collect triage package from endpoint",
+      "Scan memory for injected payload",
+      "Review domain controller authentication logs",
+    ],
+    notable_details: [
+      "Process executed from suspicious temp directory",
+      "Connection established at 2026-09-28T01:25:00.172Z to external endpoint",
+      "PowerShell command line contained encoded payload",
+      "LSASS memory dump created prior to beaconing",
+      "Multiple failed logins preceded successful execution",
+    ],
+    caveats: [
+      "Analysis is advisory and heuristic based",
+      "Network captures are currently incomplete",
+      "Endpoint agent was delayed during initial event",
+      "DNS logs for this timeframe are pending ingestion",
+      "External IP reputation may have changed since triage",
+    ],
+    generated_time: "2026-10-01T00:00:00.000Z",
+    is_stale: false,
+    ungrounded_mentions: [] as string[],
+  },
+};
+
+const UNGROUNDED_RICH_MOCK = {
+  ...RICH_EXPLAIN_RESPONSE,
+  explain: {
+    ...RICH_EXPLAIN_RESPONSE.explain,
+    summary:
+      RICH_EXPLAIN_RESPONSE.explain.summary + " Also saw unauthorized beacon to 10.9.9.9.",
+    ungrounded_mentions: ["10.9.9.9"],
+  },
+};
+
+test.describe("AI analysis - Step 9a upgrades", () => {
+  test("rich explanation presentation: entity strip, verification, open sections, expandable lists, chips, timestamp rewrite, text integrity", async ({
+    page,
+  }) => {
+    await page.route("**/api/ai/explain/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(RICH_EXPLAIN_RESPONSE),
+      }),
+    );
+
+    await page.addInitScript(() => localStorage.setItem("theme", "light"));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/incidents/inc-0004");
+    await page.waitForLoadState("networkidle");
+
+    await page.locator('button:has-text("Explain")').click();
+    await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
+
+    // 1. Entity strip visible with expected chips
+    const strip = page.locator(".border-b.border-line.bg-surface-subtle").filter({
+      hasText: "Mentioned in this analysis",
+    });
+    await expect(strip).toBeVisible();
+
+    // Verification text: All N verified against incident data
+    const allTexts = [
+      RICH_EXPLAIN_RESPONSE.explain.summary,
+      RICH_EXPLAIN_RESPONSE.explain.objective,
+      ...RICH_EXPLAIN_RESPONSE.explain.next_steps,
+      ...RICH_EXPLAIN_RESPONSE.explain.notable_details,
+      ...RICH_EXPLAIN_RESPONSE.explain.caveats,
+    ];
+    const computedEntities = entitiesOf(allTexts);
+    const N = computedEntities.filter((e) => isCheckedKind(e.kind)).length;
+    await expect(strip.getByText(`All ${N} verified against incident data`)).toBeVisible();
+
+    // Chips are <code>, not buttons, font contains mono
+    const chips = strip.locator("code");
+    const chipCount = await chips.count();
+    expect(chipCount).toBeGreaterThanOrEqual(1);
+    for (let i = 0; i < chipCount; i++) {
+      const chip = chips.nth(i);
+      const isButton = await chip.evaluate((el) => el.tagName.toLowerCase() === "button");
+      expect(isButton).toBe(false);
+      const font = await chip.evaluate((el) => window.getComputedStyle(el).fontFamily);
+      expect(font.toLowerCase()).toContain("mono");
+    }
+
+    // 2. All four <details> open by default
+    const details = page.locator("details");
+    await expect(details).toHaveCount(4);
+    for (let i = 0; i < 4; i++) {
+      await expect(details.nth(i)).toHaveAttribute("open", "");
+    }
+
+    // 3. Next steps: 4 visible and 'Show 2 more' button, expand to 6
+    const nextStepsOl = details.nth(1).locator("ol");
+    await expect(nextStepsOl.locator("li")).toHaveCount(4);
+    const toggleBtn = details.nth(1).locator("button[aria-controls]");
+    await expect(toggleBtn).toBeVisible();
+    await expect(toggleBtn).toHaveText("Show 2 more");
+    await expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+    await toggleBtn.click();
+    await expect(toggleBtn).toHaveText("Show fewer");
+    await expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+    await expect(nextStepsOl.locator("li")).toHaveCount(6);
+
+    // 4. Notable details shows 3 items
+    const notableUl = details.nth(2).locator("ul");
+    await expect(notableUl.locator("li")).toHaveCount(3);
+
+    // 5. Caveats shows 2 items
+    const caveatsUl = details.nth(3).locator("ul");
+    await expect(caveatsUl.locator("li")).toHaveCount(2);
+
+    // 6. No raw ISO timestamp matches in visible text
+    const aiCard = page.locator('.rounded-lg:has(h3:has-text("AI analysis"))').first();
+    const cardText = await aiCard.innerText();
+    expect(cardText).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+
+    // 7. Rewritten timestamp has a <time> element whose title equals the original ISO
+    const timeEl = page.locator('time[title="2026-09-28T01:25:00.172Z"]');
+    await expect(timeEl).toBeVisible();
+    expect(await timeEl.getAttribute("title")).toBe("2026-09-28T01:25:00.172Z");
+
+    // 8. TextContent after substituting each ISO match with the text of the corresponding <time> equals source text with normalized whitespace
+    const notableLi2 = notableUl.locator("li").nth(1);
+    const timeText = await timeEl.textContent();
+    const expectedLiText = "Connection established at 2026-09-28T01:25:00.172Z to external endpoint".replace(
+      "2026-09-28T01:25:00.172Z",
+      timeText?.trim() ?? "",
+    );
+    const actualLiText = (await notableLi2.textContent())?.replace(/\s+/g, " ").trim();
+    expect(actualLiText).toBe(expectedLiText.replace(/\s+/g, " ").trim());
+  });
+
+  test("ungrounded mentions in entity strip: amber badge with count and ungrounded chip styling, omitted when undefined", async ({
+    page,
+  }) => {
+    // 1. With ungrounded mentions
+    await page.route("**/api/ai/explain/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(UNGROUNDED_RICH_MOCK),
+      }),
+    );
+
+    await page.addInitScript(() => localStorage.setItem("theme", "light"));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/incidents/inc-0004");
+    await page.waitForLoadState("networkidle");
+
+    await page.locator('button:has-text("Explain")').click();
+    await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
+
+    const strip = page.locator(".border-b.border-line.bg-surface-subtle").filter({
+      hasText: "Mentioned in this analysis",
+    });
+    await expect(strip.getByText("1 not found in incident data")).toBeVisible();
+
+    const ungroundedChip = strip.locator('code[data-kind="ip"][data-ungrounded="true"]:has-text("10.9.9.9")');
+    await expect(ungroundedChip).toBeVisible();
+
+    // 2. With ungrounded_mentions undefined: no verification text
+    const UNDEFINED_UNGROUNDED_MOCK = {
+      ...RICH_EXPLAIN_RESPONSE,
+      explain: {
+        ...RICH_EXPLAIN_RESPONSE.explain,
+        ungrounded_mentions: undefined,
+      },
+    };
+    await page.route("**/api/ai/explain/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(UNDEFINED_UNGROUNDED_MOCK),
+      }),
+    );
+
+    await page.locator('button:has-text("Regenerate")').click();
+    await page.waitForTimeout(300);
+    await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
+
+    await expect(strip.getByText("verified against incident data")).not.toBeVisible();
+    await expect(strip.getByText("not found in incident data")).not.toBeVisible();
+  });
+
+  test("XSS safety: explain item containing HTML/script tags renders literally without executing", async ({
+    page,
+  }) => {
+    const XSS_MOCK = {
+      ...MOCK_EXPLAIN_RESPONSE,
+      explain: {
+        ...MOCK_EXPLAIN_RESPONSE.explain,
+        summary: 'Testing XSS vulnerability <img src=x onerror="window.__xss=1"> safely.',
+      },
+    };
+
+    await page.route("**/api/ai/explain/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(XSS_MOCK),
+      }),
+    );
+
+    await page.addInitScript(() => localStorage.setItem("theme", "light"));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/incidents/inc-0004");
+    await page.waitForLoadState("networkidle");
+
+    await page.locator('button:has-text("Explain")').click();
+    await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
+
+    // Renders as literal text
+    await expect(page.getByText('<img src=x onerror="window.__xss=1">')).toBeVisible();
+
+    // No img element inside card
+    const cardEl = page.locator('.rounded-lg:has(h3:has-text("AI analysis"))').first();
+    const imgs = cardEl.locator("img");
+    expect(await imgs.count()).toBe(0);
+
+    // window.__xss is undefined
+    const xssVal = await page.evaluate(() => (window as unknown as { __xss?: number }).__xss);
+    expect(xssVal).toBeUndefined();
+  });
+
+  test("copy as markdown: copies full markdown matching toMarkdown with feedback state", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+
+    await page.route("**/api/ai/explain/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(RICH_EXPLAIN_RESPONSE),
+      }),
+    );
+
+    await page.addInitScript(() => localStorage.setItem("theme", "light"));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/incidents/inc-0004");
+    await page.waitForLoadState("networkidle");
+
+    await page.locator('button:has-text("Explain")').click();
+    await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
+
+    const copyBtn = page.locator('button:has-text("Copy as markdown")');
+    await expect(copyBtn).toBeVisible();
+    await copyBtn.click();
+
+    // aria-live span reads "Copied"
+    await expect(page.locator('span[aria-live="polite"]:has-text("Copied")')).toBeVisible();
+
+    // Read clipboard and assert it matches toMarkdown from original data
+    const clipText = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
+    const expectedMd = toMarkdown({
+      incidentId: "inc-0004",
+      generatedUtc: "2026-10-01 00:00:00 UTC",
+      modelLabel: "deepseek-chat",
+      summary: RICH_EXPLAIN_RESPONSE.explain.summary,
+      objective: RICH_EXPLAIN_RESPONSE.explain.objective,
+      nextSteps: RICH_EXPLAIN_RESPONSE.explain.next_steps,
+      notableDetails: RICH_EXPLAIN_RESPONSE.explain.notable_details,
+      caveats: RICH_EXPLAIN_RESPONSE.explain.caveats,
+    });
+
+    expect(clipText.trim()).toBe(expectedMd.trim());
+  });
+
+  test("inc-0003 stored smoke: strip present, at least 5 chips, no raw ISO, no ungrounded notice", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => localStorage.setItem("theme", "light"));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/incidents/inc-0003");
+    await page.waitForLoadState("networkidle");
+
+    const strip = page.locator('.border-b.border-line.bg-surface-subtle:has-text("Mentioned in this analysis")');
+    expect.soft(await strip.isVisible(), "entity strip present on inc-0003").toBe(true);
+
+    const chips = strip.locator("code");
+    const chipCount = await chips.count();
+    expect.soft(chipCount >= 5, `inc-0003 has at least 5 entity chips (got ${chipCount})`).toBe(true);
+
+    const cardText = await page.locator('.rounded-lg:has(h3:has-text("AI analysis"))').innerText();
+    expect.soft(!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(cardText), "no raw ISO timestamp in visible card text").toBe(true);
+
+    const ungroundedNotice = page.locator('span:has-text("Not found in incident data:")');
+    expect.soft(await ungroundedNotice.isVisible(), "no ungrounded notice on inc-0003").toBe(false);
+  });
+});
+
+test.describe("AI analysis -v6 captures", () => {
+  const CAPTURES = [
+    { label: "ai-analysis-inc-0003-light-1440-v6", id: "inc-0003", theme: "light", type: "stored" },
+    { label: "ai-analysis-inc-0003-dark-1440-v6", id: "inc-0003", theme: "dark", type: "stored" },
+    { label: "ai-analysis-rich-mock-light-1440-v6", id: "inc-0004", theme: "light", type: "rich" },
+    { label: "ai-analysis-rich-mock-dark-1440-v6", id: "inc-0004", theme: "dark", type: "rich" },
+    { label: "ai-analysis-ungrounded-light-1440-v6", id: "inc-0004", theme: "light", type: "ungrounded" },
+  ] as const;
+
+  for (const item of CAPTURES) {
+    test(`capture ${item.label}`, async ({ page }) => {
+      await page.addInitScript((t) => localStorage.setItem("theme", t), item.theme);
+      await page.setViewportSize({ width: 1440, height: 900 });
+
+      if (item.type === "rich") {
+        await page.route("**/api/ai/explain/**", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(RICH_EXPLAIN_RESPONSE),
+          }),
+        );
+      } else if (item.type === "ungrounded") {
+        await page.route("**/api/ai/explain/**", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(UNGROUNDED_RICH_MOCK),
+          }),
+        );
+      } else {
+        await page.route("**/api/ai/explain/**", (route) => route.abort());
+      }
+
+      await page.goto(`/incidents/${item.id}`);
+      await page.waitForLoadState("networkidle");
+
+      if (item.type === "rich" || item.type === "ungrounded") {
+        await page.locator('button:has-text("Explain")').click();
+        await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
+      }
+
+      const aiCard = page.locator('.rounded-lg:has(h3:has-text("AI analysis"))').first();
+      await aiCard.screenshot({ path: `e2e/screenshots/${item.label}.png` });
+      const cardBox = await aiCard.boundingBox();
+      expect(cardBox).not.toBeNull();
+      console.log(`[Capture ${item.label}] size: ${cardBox!.width}x${cardBox!.height}`);
+      expect(cardBox!.width).toBeGreaterThan(600);
+      expect(cardBox!.height).toBeGreaterThan(300);
+    });
+  }
+});
+
 

@@ -1,32 +1,52 @@
 "use client";
 
-import React, { useState } from "react";
-import { ChevronRight, Loader2, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
+import React, { useId, useMemo, useState } from "react";
+import {
+  ChevronRight,
+  FileText,
+  List,
+  ListChecks,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 
+import { CopyMarkdownButton } from "@/components/explain/CopyMarkdownButton";
+import { EntityStrip } from "@/components/explain/EntityStrip";
+import { RichText } from "@/components/explain/RichText";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
 import { Time } from "@/components/ui/Time";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { entitiesOf } from "@/lib/explainEntities";
 import { displayModel } from "@/lib/incidentDisplay";
 import { tzLabel } from "@/lib/time";
 import type { IncidentTriage } from "@/lib/types";
 
 function Section({
   title,
+  icon: Icon,
+  iconClassName,
   count,
-  defaultOpen,
+  defaultOpen = true,
   children,
 }: {
   title: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  iconClassName?: string;
   count?: number;
-  defaultOpen: boolean;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <details open={defaultOpen} className="group">
       <summary className="flex h-11 cursor-pointer list-none items-center gap-2 px-4 text-sm font-medium text-ink hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle motion-safe:transition-transform group-open:rotate-90" />
+        {Icon && (
+          <Icon className={`h-4 w-4 shrink-0 ${iconClassName ?? "text-ink-subtle"}`} />
+        )}
         <span>{title}</span>
         {count !== undefined && (
           <span className="font-normal text-ink-subtle">{count}</span>
@@ -36,6 +56,50 @@ function Section({
         {children}
       </div>
     </details>
+  );
+}
+
+function ExpandableList({
+  items,
+  limit,
+  ordered = false,
+  ungrounded,
+  id,
+}: {
+  items: string[];
+  limit: number;
+  ordered?: boolean;
+  ungrounded?: string[];
+  id: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? items : items.slice(0, limit);
+  const ListTag = ordered ? "ol" : "ul";
+  const listClass = ordered
+    ? "list-decimal pl-5 marker:text-ink-subtle space-y-1.5"
+    : "list-disc pl-5 marker:text-ink-subtle space-y-1.5";
+
+  return (
+    <div>
+      <ListTag id={id} className={listClass}>
+        {visible.map((item, idx) => (
+          <li key={idx} className="text-sm leading-6 text-ink">
+            <RichText text={item} ungrounded={ungrounded} />
+          </li>
+        ))}
+      </ListTag>
+      {items.length > limit && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={id}
+          onClick={() => setExpanded((prev) => !prev)}
+          className="mt-2 text-xs text-ink-muted hover:text-ink hover:underline"
+        >
+          {expanded ? "Show fewer" : `Show ${items.length - limit} more`}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -61,9 +125,24 @@ export function ExplainPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const nextStepsId = useId();
+  const notableDetailsId = useId();
+  const caveatsId = useId();
+
   const canExplain = triage !== null && triage.status === "ok";
   const explain = triage?.explain ?? null;
   const modelToShow = triage?.model ?? modelProp;
+
+  const entities = useMemo(() => {
+    if (!explain) return [];
+    return entitiesOf([
+      explain.summary,
+      explain.objective,
+      ...(explain.next_steps || []),
+      ...(explain.notable_details || []),
+      ...(explain.caveats || []),
+    ]);
+  }, [explain]);
 
   const requestExplain = async (force: boolean) => {
     setLoading(true);
@@ -178,47 +257,111 @@ export function ExplainPanel({
                 </Notice>
               </div>
             )}
-            <Section title="Summary" defaultOpen={true}>
-              <p>{explain.summary}</p>
-            </Section>
-            <Section title="Likely objective" defaultOpen={true}>
-              <p>{explain.objective}</p>
-            </Section>
-            {explain.notable_details.length > 0 && (
-              <Section title="Notable details" count={explain.notable_details.length} defaultOpen={false}>
-                <ul className="list-disc pl-5 marker:text-ink-subtle space-y-1.5">
-                  {explain.notable_details.map((item, i) => <li key={i}>{item}</li>)}
-                </ul>
-              </Section>
+            {/* Entity strip */}
+            {entities.length > 0 && (
+              <EntityStrip
+                entities={entities}
+                ungrounded={explain.ungrounded_mentions}
+              />
             )}
-            {explain.next_steps.length > 0 && (
-              <Section title="Next steps" count={explain.next_steps.length} defaultOpen={false}>
-                <ol className="list-decimal pl-5 marker:text-ink-subtle space-y-1.5">
-                  {explain.next_steps.map((item, i) => <li key={i}>{item}</li>)}
-                </ol>
+            {/* Sections */}
+            <div className="divide-y divide-line">
+              <Section title="Summary" icon={FileText} defaultOpen={true}>
+                <div className="max-w-[68ch]">
+                  <p className="text-sm leading-7 text-ink">
+                    <RichText
+                      text={explain.summary}
+                      ungrounded={explain.ungrounded_mentions}
+                    />
+                  </p>
+                  {explain.objective && explain.objective.trim() ? (
+                    <p className="mt-2 text-sm leading-6 text-ink-muted">
+                      <span className="font-medium text-ink">Likely objective: </span>
+                      <RichText
+                        text={explain.objective}
+                        ungrounded={explain.ungrounded_mentions}
+                      />
+                    </p>
+                  ) : null}
+                </div>
               </Section>
-            )}
-            {explain.caveats.length > 0 && (
-              <Section title="Caveats" count={explain.caveats.length} defaultOpen={false}>
-                <ul className="list-disc pl-5 marker:text-ink-subtle space-y-1.5">
-                  {explain.caveats.map((item, i) => <li key={i}>{item}</li>)}
-                </ul>
-              </Section>
-            )}
+              {explain.next_steps.length > 0 && (
+                <Section
+                  title="Next steps"
+                  icon={ListChecks}
+                  count={explain.next_steps.length}
+                  defaultOpen={true}
+                >
+                  <div className="max-w-[68ch]">
+                    <ExpandableList
+                      id={nextStepsId}
+                      items={explain.next_steps}
+                      limit={4}
+                      ordered={true}
+                      ungrounded={explain.ungrounded_mentions}
+                    />
+                  </div>
+                </Section>
+              )}
+              {explain.notable_details.length > 0 && (
+                <Section
+                  title="Notable details"
+                  icon={List}
+                  count={explain.notable_details.length}
+                  defaultOpen={true}
+                >
+                  <div className="max-w-[68ch]">
+                    <ExpandableList
+                      id={notableDetailsId}
+                      items={explain.notable_details}
+                      limit={3}
+                      ordered={false}
+                      ungrounded={explain.ungrounded_mentions}
+                    />
+                  </div>
+                </Section>
+              )}
+              {explain.caveats.length > 0 && (
+                <Section
+                  title="Caveats"
+                  icon={TriangleAlert}
+                  iconClassName="text-amber-600 dark:text-amber-400"
+                  count={explain.caveats.length}
+                  defaultOpen={true}
+                >
+                  <div className="max-w-[68ch]">
+                    <ExpandableList
+                      id={caveatsId}
+                      items={explain.caveats}
+                      limit={2}
+                      ordered={false}
+                      ungrounded={explain.ungrounded_mentions}
+                    />
+                  </div>
+                </Section>
+              )}
+            </div>
             {/* Footer */}
             {(explain.generated_time || modelToShow) && (
-              <div className="flex items-center gap-1 px-4 py-3 text-xs text-ink-subtle">
-                <span>Generated</span>
-                <Time iso={explain.generated_time} className="" />
-                <span>{tzLabel()}</span>
-                {modelToShow && (
-                  <>
-                    <span>·</span>
-                    <Tooltip content={modelToShow}>
-                      <span>{displayModel(modelToShow)}</span>
-                    </Tooltip>
-                  </>
-                )}
+              <div className="flex items-center justify-between px-4 py-3 text-xs text-ink-subtle">
+                <div className="flex items-center gap-1">
+                  <span>Generated</span>
+                  <Time iso={explain.generated_time} className="" />
+                  <span>{tzLabel()}</span>
+                  {modelToShow && (
+                    <>
+                      <span>·</span>
+                      <Tooltip content={modelToShow}>
+                        <span>{displayModel(modelToShow)}</span>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+                <CopyMarkdownButton
+                  incidentId={incidentId}
+                  explain={explain}
+                  model={modelToShow}
+                />
               </div>
             )}
           </div>
@@ -227,3 +370,4 @@ export function ExplainPanel({
     </Card>
   );
 }
+
