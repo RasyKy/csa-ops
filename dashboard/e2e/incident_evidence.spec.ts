@@ -494,21 +494,18 @@ test.describe("AI analysis", () => {
   });
 
   test("ungrounded notice: items inline from data, and mock with 5 items asserts 'and 2 more'", async ({ page }) => {
-    // 1. Check existing ungrounded notice on inc-0003
     await page.addInitScript(() => localStorage.setItem("theme", "light"));
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/incidents/inc-0003");
-    await page.waitForLoadState("networkidle");
 
-    const ungroundedEl = page.locator('span:has-text("Not found in incident data:")');
-    await expect(ungroundedEl).toBeVisible();
-    const textContent = await ungroundedEl.textContent();
-    expect(textContent).toContain("Not found in incident data:");
-    // Full list in title attribute
-    const titleAttr = await ungroundedEl.getAttribute("title");
-    expect(titleAttr).toBeTruthy();
+    const twoItems = ["item_one.exe", "item_two.dll"];
+    const MOCK_2_UNGROUNDED = {
+      ...MOCK_EXPLAIN_RESPONSE,
+      explain: {
+        ...MOCK_EXPLAIN_RESPONSE.explain,
+        ungrounded_mentions: twoItems,
+      },
+    };
 
-    // 2. Mock explain with 5 ungrounded items
     const fiveItems = [
       "item_one.exe",
       "item_two.dll",
@@ -524,27 +521,44 @@ test.describe("AI analysis", () => {
       },
     };
 
+    let currentMock = MOCK_2_UNGROUNDED;
     await page.route("**/api/ai/explain/**", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_5_UNGROUNDED),
+        body: JSON.stringify(currentMock),
       }),
     );
 
+    // 1. First test with 2 items: both shown inline, no "and X more"
     await page.goto("/incidents/inc-0004");
     await page.waitForLoadState("networkidle");
 
     await page.locator('button:has-text("Explain")').click();
     await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
 
-    const mockedUngroundedEl = page.locator('span:has-text("Not found in incident data:")');
-    await expect(mockedUngroundedEl).toBeVisible();
-    const mockedText = await mockedUngroundedEl.textContent();
-    expect(mockedText).toContain("Not found in incident data: item_one.exe, item_two.dll, item_three.sys and 2 more");
+    const ungroundedEl2 = page.locator('span:has-text("Not found in incident data:")');
+    await expect(ungroundedEl2).toBeVisible();
+    const text2 = await ungroundedEl2.textContent();
+    expect(text2).toContain("Not found in incident data: item_one.exe, item_two.dll");
+    expect(text2).not.toContain("more");
 
-    const mockedTitle = await mockedUngroundedEl.getAttribute("title");
-    expect(mockedTitle).toBe(fiveItems.join(", "));
+    const title2 = await ungroundedEl2.getAttribute("title");
+    expect(title2).toBe(twoItems.join(", "));
+
+    // 2. Next test with 5 items: first 3 items inline and "and 2 more"
+    currentMock = MOCK_5_UNGROUNDED;
+    await page.locator('button:has-text("Regenerate")').click();
+    await page.waitForTimeout(300);
+    await page.waitForSelector('button:has-text("Regenerate")', { timeout: 3000 });
+
+    const ungroundedEl5 = page.locator('span:has-text("Not found in incident data:")');
+    await expect(ungroundedEl5).toBeVisible();
+    const text5 = await ungroundedEl5.textContent();
+    expect(text5).toContain("Not found in incident data: item_one.exe, item_two.dll, item_three.sys and 2 more");
+
+    const title5 = await ungroundedEl5.getAttribute("title");
+    expect(title5).toBe(fiveItems.join(", "));
   });
 });
 

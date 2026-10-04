@@ -17,7 +17,20 @@ _FILE_PATH_RE = re.compile(r"(?:\b[A-Za-z]:|\\\\[^\\/:*?\"<>|\r\n\s]+)\\(?:[^\\/
 # that contains at least one digit -- catches WS01, SRV-042, DESKTOP1, etc.
 # without trying to model every real naming convention.
 _HOSTNAME_RE = re.compile(r"\b[A-Z][A-Z0-9-]*\d[A-Z0-9-]*\b")
-_TRAILING_PUNCT = ".,;:!?)]}\"'"
+_TRAILING_PUNCT = ".,;:!?)]}\"\'"
+
+# Security abbreviations and protocol/crypto shorthands that match
+# _HOSTNAME_RE but are never actual hostnames. Checked case-insensitively.
+_SECURITY_TERMS: frozenset[str] = frozenset({
+    "SHA1", "SHA256", "MD5", "AES256", "TLS1", "TLS12",
+    "HTTP2", "SMB1", "SMB2", "SMB3", "SMBV1", "NTLMV2",
+    "IPV4", "IPV6", "BASE64", "UTF8", "UTF16",
+    "WIN10", "WIN11", "AMD64", "X64", "X86",
+})
+
+# Minimum character length for a hostname candidate. Real names like WS01,
+# DC01, SRV-042 are 4+ characters; short tokens like C2 are not hostnames.
+_HOSTNAME_MIN_LEN = 4
 
 
 def _is_path(entity: str) -> bool:
@@ -37,7 +50,12 @@ def extract_entities(text: str) -> set[str]:
         cleaned = p.rstrip(_TRAILING_PUNCT)
         if cleaned:
             entities.add(cleaned)
-    entities.update(_HOSTNAME_RE.findall(text))
+    for h in _HOSTNAME_RE.findall(text):
+        if len(h) < _HOSTNAME_MIN_LEN:
+            continue
+        if h.upper() in _SECURITY_TERMS:
+            continue
+        entities.add(h)
     return entities
 
 
