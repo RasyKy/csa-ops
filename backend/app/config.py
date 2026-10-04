@@ -6,11 +6,14 @@ safe. See docs/interfaces.md for the data contracts these values support.
 import json
 import os
 from functools import lru_cache
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
 load_dotenv()
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseModel):
@@ -18,6 +21,9 @@ class Settings(BaseModel):
     agent_api_key: str = "changeme-agent-key"
 
     store_backend: str = "fixtures"
+    fixture_set: str = "default"
+    fixture_root: str = str(REPO_ROOT / "fixtures")
+    data_root: str = str(REPO_ROOT / "data")
     fixtures_dir: str = "fixtures"
     intake_state_path: str = "./data/intake_state.json"
     response_actions_path: str = "./data/response_actions.json"
@@ -64,6 +70,9 @@ def get_settings() -> Settings:
         dashboard_api_key=os.getenv("DASHBOARD_API_KEY", "changeme-dashboard-key"),
         agent_api_key=os.getenv("AGENT_API_KEY", "changeme-agent-key"),
         store_backend=os.getenv("STORE_BACKEND", "fixtures"),
+        fixture_set=os.getenv("FIXTURE_SET", "default"),
+        fixture_root=os.getenv("FIXTURE_ROOT", str(REPO_ROOT / "fixtures")),
+        data_root=os.getenv("DATA_ROOT", str(REPO_ROOT / "data")),
         fixtures_dir=os.getenv("FIXTURES_DIR", "fixtures"),
         intake_state_path=os.getenv("INTAKE_STATE_PATH", "./data/intake_state.json"),
         response_actions_path=os.getenv("RESPONSE_ACTIONS_PATH", "./data/response_actions.json"),
