@@ -96,7 +96,7 @@ export function tzLabel(timeZone: string = DISPLAY_TZ): string {
   return "UTC+0";
 }
 
-export function formatShortDate(iso: string | null | undefined, timeZone?: string): string {
+export function formatShortDate(iso: string | null | undefined, timeZone: string = DISPLAY_TZ): string {
   const d = parseDate(iso);
   if (!d) return "Unknown";
   try {

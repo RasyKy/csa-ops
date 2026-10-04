@@ -45,7 +45,7 @@ function processBuckets(
       const counts = byBucket.get(key) ?? {};
       filled.push({
         label: formatHourMinute(key),
-        fullLabel: formatHourMinute(key),
+        fullLabel: `${formatShortDate(key)} ${formatHourMinute(key)}`,
         ...counts,
       });
       cur = new Date(cur.getTime() + stepMs);
@@ -140,7 +140,7 @@ function processBuckets(
     });
     weekCur = nextWeek;
   }
-  return { buckets: filled, caption: "Alerts per week (UTC days)" };
+  return { buckets: filled, caption: "Alerts per week" };
 }
 
 interface TooltipPayloadEntry {
@@ -160,9 +160,10 @@ function CustomTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const total = payload.reduce((acc: number, entry: TooltipPayloadEntry) => acc + (Number(entry.value) || 0), 0);
+  const fullLabel = (payload[0]?.payload as { fullLabel?: string } | undefined)?.fullLabel ?? label;
   return (
-    <div className="rounded border border-line bg-surface p-2 text-xs shadow-md">
-      <p className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1.5">{label}</p>
+    <div data-testid="timeseries-tooltip" className="rounded border border-line bg-surface p-2 text-xs shadow-md">
+      <p className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1.5">{fullLabel}</p>
       <ul className="space-y-1 mb-1.5">
         {SEVERITY_ORDER.map((sev) => {
           const entry = payload.find((p: TooltipPayloadEntry) => p.dataKey === sev);
