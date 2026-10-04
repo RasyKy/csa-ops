@@ -95,3 +95,41 @@ export function tzLabel(timeZone: string = DISPLAY_TZ): string {
   }
   return "UTC+0";
 }
+
+export function formatShortDate(iso: string | null | undefined, timeZone?: string): string {
+  const d = parseDate(iso);
+  if (!d) return "Unknown";
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "short",
+      ...(timeZone ? { timeZone } : {}),
+    });
+    const parts = dtf.formatToParts(d);
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    const month = parts.find((p) => p.type === "month")?.value ?? "";
+    return `${day} ${month}`;
+  } catch {
+    return "Unknown";
+  }
+}
+
+export function formatHourMinute(iso: string | null | undefined, timeZone: string = DISPLAY_TZ): string {
+  const d = parseDate(iso);
+  if (!d) return "Unknown";
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      ...(timeZone ? { timeZone } : {}),
+    });
+    const parts = dtf.formatToParts(d);
+    const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+    const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+    return `${hour}:${minute}`;
+  } catch {
+    return "Unknown";
+  }
+}
+

@@ -14,7 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 
 from backend.metrics import calc
-from backend.metrics.coverage import parse_rule_coverage
+from backend.metrics.coverage import parse_rule_coverage, parse_rule_tactics
 from engine.response.safety import KillSwitch, global_mode
 
 from ..auth import require_dashboard_key
@@ -180,17 +180,40 @@ def get_top(range: str = "7d", store=Depends(get_store), _key=Depends(require_da
     }
 
 
+def _is_parent_child(parent: str, child: str) -> bool:
+    """True if parent has no dot and child is parent.<digits>."""
+    if "." in parent:
+        return False
+    prefix = parent + "."
+    return child.startswith(prefix) and child[len(prefix):].isdigit()
+
+
+def _is_technique_represented(technique: str, fired_techniques: set[str]) -> bool:
+    if technique in fired_techniques:
+        return True
+    return any(
+        _is_parent_child(t_fired, technique) or _is_parent_child(technique, t_fired)
+        for t_fired in fired_techniques
+    )
+
+
 @router.get("/mitre")
 def get_mitre(range: str = "7d", store=Depends(get_store), _key=Depends(require_dashboard_key)):
     since = _since_for_range(range)
     fired = store.alerts_by_technique_tactic(since=since)
     coverage = parse_rule_coverage(_RULES_DIR)
+    tactics = parse_rule_tactics(_RULES_DIR)
 
     fired_techniques = {row["technique"] for row in fired}
     cells = [{**row, "status": "fired"} for row in fired]
     for technique in coverage:
-        if technique not in fired_techniques:
-            cells.append({"technique": technique, "tactic": None, "count": 0, "status": "covered_not_fired"})
+        if not _is_technique_represented(technique, fired_techniques):
+            cells.append({
+                "technique": technique,
+                "tactic": tactics.get(technique),
+                "count": 0,
+                "status": "covered_not_fired",
+            })
 
     return {
         **_envelope(range, since),

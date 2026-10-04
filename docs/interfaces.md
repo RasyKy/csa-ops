@@ -260,16 +260,23 @@ A's `alerts`/`incidents`.
 techniques actually **fired** (from alert data, live) and which are
 **covered** by a rule (parsed read-only from `rules/*.yml`'s Sigma `tags`,
 e.g. `attack.t1003.001`). `rules/` now has Person A's 8 real Sigma rules, so
-coverage reports real data, not `pending_upstream`. Note the granularity
-mismatch this surfaced: rule tags use sub-technique IDs (e.g.
-`attack.t1003.001` -> `T1003.001`), and those sub-technique IDs propagate
-verbatim into `alerts[].technique` and `incidents[].techniques[]` — they are
-not collapsed to the parent technique anywhere server-side. The dashboard's
-`MitreHeatmap` technique-label lookup now falls back to the parent
+coverage reports real data, not `pending_upstream`. When building cells for
+`GET /metrics/mitre`, covered (rule-only) techniques are merged and skipped
+when a fired technique equals them, or when one of the two is the bare parent
+of the other (the parent has no "." and the other is parent + "." + digits).
+Two different sub-techniques of the same parent are not merged. Fired cells
+remain unchanged (`status: "fired"`, their alert count and tactic). Remaining
+covered cells (`status: "covered_not_fired"`, `count: 0`) now carry their
+tactic derived from the rule's own ATT&CK tags (`attack.<tactic>`), or `None`
+if the rule has no tactic tag. Note the granularity mismatch this originally
+surfaced: rule tags use sub-technique IDs (e.g. `attack.t1003.001` ->
+`T1003.001`), and those sub-technique IDs propagate verbatim into
+`alerts[].technique` and `incidents[].techniques[]` -- the parent/sub-technique
+merge rule now reconciles them in `/metrics/mitre`. The dashboard's
+`MitreHeatmap` technique-label lookup also falls back to the parent
 technique's label when the sub-technique isn't in its own label dictionary
 (`T1003.001` shows "T1003.001 OS Credential Dumping"), so a label is never
-just a bare unlabeled ID, but the IDs themselves are still sub-technique
-granularity, not parent. There is no third "not covered" state: that would
+just a bare unlabeled ID. There is no third "not covered" state: that would
 need MITRE's full ~600-technique catalog, which isn't bundled in this
 project.
 

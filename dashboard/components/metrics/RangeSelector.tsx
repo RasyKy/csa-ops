@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTime, tzLabel } from "@/lib/time";
 import type { MetricsRange } from "@/lib/types";
 
 const RANGES: { value: MetricsRange; label: string }[] = [
@@ -20,7 +21,7 @@ export function RangeSelector({
 }) {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex gap-1 rounded border border-zinc-300 p-0.5 dark:border-zinc-700">
+      <div data-testid="overview-range" className="flex gap-1 rounded-lg border border-line bg-surface p-0.5">
         {RANGES.map((r) => (
           <button
             key={r.value}
@@ -36,7 +37,7 @@ export function RangeSelector({
         ))}
       </div>
       <span className="text-xs text-zinc-500">
-        {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}
+        {lastUpdated ? `Updated ${formatTime(lastUpdated.toISOString())} ${tzLabel()}` : "Loading…"}
       </span>
     </div>
   );

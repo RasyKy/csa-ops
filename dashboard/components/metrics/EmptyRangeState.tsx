@@ -19,13 +19,13 @@ export function EmptyRangeBanner({ range, onSwitchToAll }: { range: MetricsRange
   if (dismissed || range === "all") return null;
 
   return (
-    <div className="mb-4 flex items-center justify-between gap-3 rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div data-testid="overview-banner" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-sm">
       <span className="truncate text-zinc-600 dark:text-zinc-400">No activity in {RANGE_LABEL[range]}.</span>
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onSwitchToAll}
-          className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-800"
+          className="rounded border border-line px-2 py-1 text-xs hover:bg-surface-subtle"
         >
           Switch to all time
         </button>

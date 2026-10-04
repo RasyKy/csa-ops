@@ -114,7 +114,13 @@ export default function OverviewPage() {
           averages show a placeholder instead. */}
       <NeedsAttention incidents={data.incidents} response={data.response} />
 
-      <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_auto]">
+      <div
+        className={`mb-6 ${
+          data.summary?.mttr_by_scenario?.status === "ok"
+            ? "grid gap-3 lg:grid-cols-[1fr_auto]"
+            : ""
+        }`}
+      >
         <KpiCards summary={data.summary} />
         <MttdMttrPanel summary={data.summary} />
       </div>

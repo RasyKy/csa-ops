@@ -1,6 +1,6 @@
 """backend/metrics/coverage.py -- parses rules/*.yml for attack.tXXXX tags.
 Read-only against temp directories; never touches the real rules/."""
-from backend.metrics.coverage import parse_rule_coverage
+from backend.metrics.coverage import parse_rule_coverage, parse_rule_tactics
 
 
 def test_missing_directory_returns_empty_dict(tmp_path):
@@ -74,3 +74,49 @@ def test_non_attack_tags_are_ignored(tmp_path):
 def test_rule_with_no_tags_field_is_skipped(tmp_path):
     (tmp_path / "rule.yml").write_text("id: rule-x\ntitle: No tags here\n")
     assert parse_rule_coverage(tmp_path) == {}
+
+
+def test_parse_rule_tactics_missing_directory_returns_empty_dict(tmp_path):
+    assert parse_rule_tactics(tmp_path / "does-not-exist") == {}
+
+
+def test_parse_rule_tactics_persistence_plus_technique(tmp_path):
+    (tmp_path / "t1547_001.yml").write_text(
+        "id: T1547.001_run_key_persistence\n"
+        "tags:\n"
+        "  - attack.persistence\n"
+        "  - attack.t1547.001\n"
+    )
+    assert parse_rule_tactics(tmp_path) == {"T1547.001": "persistence"}
+
+
+def test_parse_rule_tactics_rule_with_no_tactic_tag_is_omitted(tmp_path):
+    (tmp_path / "no_tactic.yml").write_text(
+        "id: T1047_wmi\n"
+        "tags:\n"
+        "  - attack.t1047\n"
+    )
+    assert parse_rule_tactics(tmp_path) == {}
+
+
+def test_parse_rule_tactics_two_tactic_tags_uses_first(tmp_path):
+    (tmp_path / "multi_tactic.yml").write_text(
+        "id: T1059.001_powershell\n"
+        "tags:\n"
+        "  - attack.execution\n"
+        "  - attack.persistence\n"
+        "  - attack.t1059.001\n"
+    )
+    assert parse_rule_tactics(tmp_path) == {"T1059.001": "execution"}
+
+
+def test_parse_rule_tactics_malformed_yaml_is_skipped(tmp_path):
+    (tmp_path / "broken.yml").write_text("tags: [unclosed\n")
+    (tmp_path / "valid.yml").write_text(
+        "id: T1012_reg\n"
+        "tags:\n"
+        "  - attack.discovery\n"
+        "  - attack.t1012\n"
+    )
+    assert parse_rule_tactics(tmp_path) == {"T1012": "discovery"}
+

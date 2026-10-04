@@ -17,7 +17,7 @@ function Card({
 }) {
   const body = (
     <>
-      <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-zinc-500">
         {label}
         {tooltip && <InfoTooltip text={tooltip} />}
       </div>
@@ -29,13 +29,18 @@ function Card({
     return (
       <Link
         href={href}
-        className="block rounded border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+        data-testid="overview-card"
+        className="block rounded-lg border border-line bg-surface p-4 hover:bg-surface-subtle"
       >
         {body}
       </Link>
     );
   }
-  return <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">{body}</div>;
+  return (
+    <div data-testid="overview-card" className="rounded-lg border border-line bg-surface p-4">
+      {body}
+    </div>
+  );
 }
 
 function formatSeconds(seconds: number): string {
@@ -53,13 +58,13 @@ function formatSeconds(seconds: number): string {
 // Grafana" brief: a count of 0 is a real value and is shown as 0, not
 // swapped for a "no data" message -- only averages (MTTD/MTTR) have
 // nothing meaningful to show when their input set is empty, so those get
-// "—" (or, for MTTR, a more specific dry-run-aware message).
+// "-" (or, for MTTR, a more specific dry-run-aware message).
 export function KpiCards({ summary }: { summary: MetricsSummary | null }) {
   if (!summary) {
     return (
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} label="—">
+          <Card key={i} label="-">
             <MetricState status="loading" />
           </Card>
         ))}
@@ -90,7 +95,7 @@ export function KpiCards({ summary }: { summary: MetricsSummary | null }) {
         ) : summary.mttd.status === "pending_upstream" ? (
           <MetricState status="pending_upstream" pendingMessage="Waiting on detection-timing data from ingestion" />
         ) : (
-          <p className="text-2xl font-semibold text-zinc-400">—</p>
+          <p className="text-2xl font-semibold text-zinc-400">-</p>
         )}
       </Card>
       <Card
