@@ -4,10 +4,23 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Load fixture data once
 const FIXTURES_PATH = path.join(__dirname, "../../fixtures/incidents.json");
-const fixtureIncidents: Record<string, { chain: { nodes: Array<{ event_id: string; timestamp: string; image: string; command_line: string | null; pid: number; ppid: number; technique: string | null; rule_id: string | null }> } }> = {};
+type FixtureChainNode = {
+  event_id: string;
+  timestamp: string;
+  image: string;
+  command_line: string | null;
+  pid: number;
+  ppid: number;
+  technique: string | null;
+  rule_id: string | null;
+  event_type?: string | null;
+  host?: string | null;
+  detail?: string | null;
+};
+const fixtureIncidents: Record<string, { chain: { nodes: FixtureChainNode[] } }> = {};
 
 try {
-  const raw = JSON.parse(fs.readFileSync(FIXTURES_PATH, "utf-8")) as Array<{ incident_id: string; chain: { nodes: Array<{ event_id: string; timestamp: string; image: string; command_line: string | null; pid: number; ppid: number; technique: string | null; rule_id: string | null }> } }>;
+  const raw = JSON.parse(fs.readFileSync(FIXTURES_PATH, "utf-8")) as Array<{ incident_id: string; chain: { nodes: FixtureChainNode[] } }>;
   for (const inc of raw) {
     fixtureIncidents[inc.incident_id] = inc;
   }
@@ -89,6 +102,14 @@ test.describe("Event timeline", () => {
             const hasHScroll = await codeEl.evaluate((el) => el.scrollWidth > el.clientWidth);
             expect(hasHScroll).toBe(false);
           }
+        }
+
+        if (incId === "inc-0003") {
+          const thirdRow = rows.nth(2);
+          const thirdRowText = await thirdRow.textContent();
+          console.log(`[inc-0003 ${theme} third event text]: "${thirdRowText?.replace(/\s+/g, ' ')}"`);
+          expect(thirdRowText).toContain("Network connection: 203.0.113.7");
+          expect(thirdRowText).not.toContain("Command line unavailable");
         }
 
         // Time vs process name vertical alignment (|center-y diff| <= 2px)
@@ -627,3 +648,28 @@ test.describe("AI analysis -v3 captures", () => {
     });
   }
 });
+
+test.describe("Event timeline -v5 captures", () => {
+  for (const incId of ["inc-0002", "inc-0003", "inc-0004"] as const) {
+    for (const theme of ["light", "dark"] as const) {
+      test(`capture event-timeline-${incId}-${theme}-1440-v5`, async ({ page }) => {
+        await page.addInitScript((t) => localStorage.setItem("theme", t), theme);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto(`/incidents/${incId}`);
+        await page.waitForLoadState("networkidle");
+        await page.waitForTimeout(500);
+
+        const timelineCard = page.locator('.rounded-lg:has(h3:has-text("Event timeline"))').first();
+        const cardBox = await timelineCard.boundingBox();
+        expect(cardBox).not.toBeNull();
+        expect(cardBox!.width).toBeGreaterThan(600);
+        expect(cardBox!.height).toBeGreaterThan(150);
+
+        await timelineCard.screenshot({
+          path: `e2e/screenshots/event-timeline-${incId}-${theme}-1440-v5.png`,
+        });
+      });
+    }
+  }
+});
+

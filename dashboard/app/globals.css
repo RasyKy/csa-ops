@@ -70,3 +70,17 @@ html[data-sidebar="collapsed"] aside[data-sidebar-root] .sidebar-footer .chevron
   height: 18px !important;
 }
 
+.react-flow .react-flow__attribution {
+  background: transparent !important;
+  color: var(--ink-subtle) !important;
+}
+
+.react-flow .react-flow__attribution a {
+  color: inherit !important;
+  text-decoration: none;
+}
+
+.react-flow .react-flow__attribution a:hover {
+  text-decoration: underline;
+}
+

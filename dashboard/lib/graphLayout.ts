@@ -2,8 +2,9 @@ import dagre from "dagre";
 import type { Edge, Node } from "@xyflow/react";
 
 export const NODE_WIDTH = 184;
+export const NODE_HEIGHT = 84;
 export const HIT_NODE_HEIGHT = 84;
-export const NON_HIT_NODE_HEIGHT = 44;
+export const NON_HIT_NODE_HEIGHT = 84;
 
 export interface GraphLayoutBounds {
   width: number;
@@ -16,10 +17,10 @@ export function layoutGraph(
 ): { nodes: Node[]; edges: Edge[]; bounds: GraphLayoutBounds } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "LR", nodesep: 20, ranksep: 64 });
+  g.setGraph({ rankdir: "LR", nodesep: 20, ranksep: 74 });
 
   nodes.forEach((node) => {
-    const height = (node.data as { height?: number })?.height ?? 72;
+    const height = (node.data as { height?: number })?.height ?? NODE_HEIGHT;
     const width = (node.data as { width?: number })?.width ?? NODE_WIDTH;
     g.setNode(node.id, { width, height });
   });
@@ -35,7 +36,7 @@ export function layoutGraph(
 
   const layoutedNodes = nodes.map((node) => {
     const { x, y } = g.node(node.id);
-    const height = (node.data as { height?: number })?.height ?? 72;
+    const height = (node.data as { height?: number })?.height ?? NODE_HEIGHT;
     const width = (node.data as { width?: number })?.width ?? NODE_WIDTH;
     const posX = x - width / 2;
     const posY = y - height / 2;

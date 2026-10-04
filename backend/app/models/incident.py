@@ -13,6 +13,9 @@ class ChainNode(BaseModel):
     timestamp: str
     technique: Optional[str] = None
     rule_id: Optional[str] = None
+    event_type: Optional[str] = None
+    host: Optional[str] = None
+    detail: Optional[str] = None
 
 
 class ChainEdge(BaseModel):

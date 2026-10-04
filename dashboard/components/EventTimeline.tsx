@@ -11,6 +11,21 @@ function basename(path: string): string {
 const CHIP_CLASSES =
   "inline-flex h-5 items-center gap-1 rounded-full border border-line-strong bg-surface px-2 font-mono text-xs text-ink";
 
+const TIMELINE_EVENT_LABELS: Record<string, string> = {
+  network_connection: "Network connection",
+  file_event: "File write",
+  registry_event: "Registry write",
+  process_access: "Process access",
+};
+
+function getUnavailableText(node: ChainNode): string {
+  if (node.event_type && node.event_type !== "process_start") {
+    const label = TIMELINE_EVENT_LABELS[node.event_type] ?? node.event_type;
+    return node.detail ? `${label}: ${node.detail}` : label;
+  }
+  return "Command line unavailable";
+}
+
 // The chain's raw event sequence, chronological -- a complement to the
 // attack-chain graph (which shows structure/relations) rather than a
 // replacement for it. command_line is nullable (docs/interfaces.md
@@ -63,7 +78,7 @@ export function EventTimeline({ nodes }: { nodes: ChainNode[] }) {
                 <CopyButton text={node.command_line} />
               </div>
             ) : (
-              <p className="text-xs text-ink-subtle mt-0.5">Command line unavailable</p>
+              <p className="text-xs text-ink-subtle mt-0.5">{getUnavailableText(node)}</p>
             )}
           </div>
         </li>

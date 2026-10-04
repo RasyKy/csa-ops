@@ -99,8 +99,8 @@ not a code change.
   "alert_ids": ["uuid", "uuid"],
   "chain": {
     "nodes": [
-      {"event_id": "uuid", "pid": 1280, "ppid": 900, "image": "...", "command_line": "...", "timestamp": "...", "technique": "T1059.001", "rule_id": "..."},
-      {"event_id": "uuid", "pid": 4412, "ppid": 1280, "image": "...", "command_line": "...", "timestamp": "...", "technique": null, "rule_id": null}
+      {"event_id": "uuid", "pid": 1280, "ppid": 900, "image": "...", "command_line": "...", "timestamp": "...", "technique": "T1059.001", "rule_id": "...", "event_type": "process_start", "host": "WS01", "detail": null},
+      {"event_id": "uuid", "pid": 4412, "ppid": 1280, "image": "...", "command_line": null, "timestamp": "...", "technique": null, "rule_id": null, "event_type": "network_connection", "host": "WS01", "detail": "203.0.113.7:443"}
     ],
     "edges": [
       {"from": "event_id", "to": "event_id", "relation": "parent"}
@@ -116,11 +116,24 @@ not a code change.
 
 `severity` enum: `low | medium | high | critical`. `matched_scenario` may be
 `null`; the policy must handle that. `chain.nodes[].command_line` is fixed
-upstream (see the audit findings above) — still treat it as nullable for
+upstream (see the audit findings above) -- still treat it as nullable for
 any event normalized before the fix landed, but it is populated end-to-end
-for new events. `targets` is confirmed populated by the correlation engine
+for new events.
+
+`chain.nodes[]` also carries optional metadata fields (`event_type`, `host`, `detail`):
+- `event_type`: optional enum matching the normalized event type:
+  `process_start | process_access | file_event | registry_event | network_connection`.
+- `host`: optional string, identifying the host where the event occurred (e.g. `"WS01"`).
+- `detail`: optional string (max 200 chars) holding key resource or target context:
+  - `process_start`: `null` (e.g. `{"event_type": "process_start", "host": "WS01", "detail": null}`)
+  - `process_access`: `<target_process_basename> (pid <target_pid>)` (e.g. `{"event_type": "process_access", "host": "WS01", "detail": "lsass.exe (pid 700)"}`)
+  - `file_event`: target file path (e.g. `{"event_type": "file_event", "host": "WS02", "detail": "C:\\Users\\bob\\AppData\\Local\\Temp\\payload.exe"}`)
+  - `registry_event`: target registry key (e.g. `{"event_type": "registry_event", "host": "WS02", "detail": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Updater"}`)
+  - `network_connection`: destination address as `dest_ip:dest_port` or `dest_ip` (e.g. `{"event_type": "network_connection", "host": "WS02", "detail": "203.0.113.9:443"}`)
+
+`targets` is confirmed populated by the correlation engine
 (`engine/correlation/correlator.py`'s `_targets()`: pids of alerting
-processes, remote IPs from network events, file paths from file events) —
+processes, remote IPs from network events, file paths from file events) --
 B does not need its own derivation fallback for live data, though keeping
 one as a defensive fallback for a malformed/future incident doc is still
 reasonable. `relation` enum: `parent | network | file | registry`.

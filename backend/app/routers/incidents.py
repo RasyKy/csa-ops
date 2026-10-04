@@ -142,6 +142,9 @@ def get_incident_graph(
             rule_id=n.rule_id,
             rule_title=rule_titles.get(n.rule_id) if n.rule_id else None,
             is_trigger=n.rule_id is not None,
+            event_type=n.event_type,
+            host=n.host,
+            detail=n.detail,
         )
         for n in model.chain.nodes
     ]

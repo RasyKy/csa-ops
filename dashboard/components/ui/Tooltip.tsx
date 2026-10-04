@@ -7,6 +7,7 @@ export interface TooltipProps {
   children: React.ReactNode;
   delayMs?: number;
   className?: string;
+  side?: "top" | "bottom";
 }
 
 export function Tooltip({
@@ -14,6 +15,7 @@ export function Tooltip({
   children,
   delayMs = 150,
   className = "",
+  side = "top",
 }: TooltipProps) {
   const [isOpen, setIsOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -41,7 +43,7 @@ export function Tooltip({
       }
     };
 
-    if (isOpen) {
+  if (isOpen) {
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
     }
@@ -67,7 +69,9 @@ export function Tooltip({
         <span
           id={id}
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-ink px-2 py-1 text-xs text-surface border border-line-strong select-none"
+          className={`absolute z-50 -translate-x-1/2 left-1/2 whitespace-nowrap rounded bg-ink px-2 py-1 text-xs text-surface border border-line-strong select-none ${
+            side === "bottom" ? "top-full mt-1.5" : "bottom-full mb-1.5"
+          }`}
         >
           {content}
         </span>
