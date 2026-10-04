@@ -12,11 +12,16 @@ import re
 
 _IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _PID_RE = re.compile(r"\bPID\s*[:#]?\s*\(?(\d{2,7})\)?", re.IGNORECASE)
-_FILE_PATH_RE = re.compile(r"\b[A-Za-z]:\\(?:[^\\/:*?\"<>|\r\n\s]+\\)*[^\\/:*?\"<>|\r\n\s]+")
+_FILE_PATH_RE = re.compile(r"(?:\b[A-Za-z]:|\\\\[^\\/:*?\"<>|\r\n\s]+)\\(?:[^\\/:*?\"<>|\r\n\s]+\\)*[^\\/:*?\"<>|\r\n\s]+")
 # Hostname-like token: an uppercase-led alphanumeric (with optional hyphens)
 # that contains at least one digit -- catches WS01, SRV-042, DESKTOP1, etc.
 # without trying to model every real naming convention.
 _HOSTNAME_RE = re.compile(r"\b[A-Z][A-Z0-9-]*\d[A-Z0-9-]*\b")
+_TRAILING_PUNCT = ".,;:!?)]}\"'"
+
+
+def _is_path(entity: str) -> bool:
+    return bool(re.match(r"^(?:[A-Za-z]:\\|\\\\)", entity))
 
 
 def extract_entities(text: str) -> set[str]:
@@ -28,15 +33,37 @@ def extract_entities(text: str) -> set[str]:
     entities: set[str] = set()
     entities.update(_IP_RE.findall(text))
     entities.update(_PID_RE.findall(text))
-    entities.update(_FILE_PATH_RE.findall(text))
+    for p in _FILE_PATH_RE.findall(text):
+        cleaned = p.rstrip(_TRAILING_PUNCT)
+        if cleaned:
+            entities.add(cleaned)
     entities.update(_HOSTNAME_RE.findall(text))
     return entities
 
 
 def find_ungrounded(explain_text: str, source_text: str) -> list[str]:
     """Entities mentioned in `explain_text` that don't appear anywhere in
-    `source_text` (a plain substring check -- source_text is the same JSON
-    text the model was actually given, so this compares against exactly
-    what it saw). Sorted for stable, deterministic output."""
+    `source_text` (normalized substring check). Windows paths are compared
+    case-insensitively against unescaped source text, while other entities
+    require exact matches. Sorted for stable, deterministic output."""
+    norm_source = source_text.replace("\\\\", "\\")
+    norm_source_lower = norm_source.lower()
     mentioned = extract_entities(explain_text)
-    return sorted(entity for entity in mentioned if entity not in source_text)
+
+    ungrounded: list[str] = []
+    seen_paths_lower: set[str] = set()
+
+    for entity in sorted(mentioned):
+        if _is_path(entity):
+            entity_lower = entity.lower()
+            if entity_lower in norm_source_lower:
+                continue
+            if entity_lower in seen_paths_lower:
+                continue
+            seen_paths_lower.add(entity_lower)
+            ungrounded.append(entity)
+        else:
+            if entity not in norm_source:
+                ungrounded.append(entity)
+
+    return sorted(ungrounded)

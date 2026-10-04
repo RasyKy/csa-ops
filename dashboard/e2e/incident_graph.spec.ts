@@ -710,7 +710,7 @@ test.describe("Attack chain graph tests", () => {
         expect.soft(eventBorder).toBe(lineStrong);
         expect.soft(eventBorder).not.toBe(hitBorder);
 
-        // 13. Tooltip check: hover all four toolbar buttons, assert within container rect and elementFromPoint
+        // 13. Tooltip check: hover all four toolbar buttons, assert within container rect, inside non-visible ancestors, pointer-events none
         const toolbarButtons = [
           { label: "Zoom in", selector: 'button[aria-label="Zoom in"]' },
           { label: "Zoom out", selector: 'button[aria-label="Zoom out"]' },
@@ -737,15 +737,95 @@ test.describe("Attack chain graph tests", () => {
             expect.soft(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(rfBox.x + rfBox.width + 1);
             expect.soft(tooltipBox.y + tooltipBox.height).toBeLessThanOrEqual(rfBox.y + rfBox.height + 1);
 
-            const isHit = await page.evaluate(
-              ({ cx, cy }) => {
-                const el = document.elementFromPoint(cx, cy);
-                const tip = document.querySelector('[role="tooltip"]');
-                return tip ? tip === el || tip.contains(el) : false;
-              },
-              { cx: tooltipBox.x + tooltipBox.width / 2, cy: tooltipBox.y + tooltipBox.height / 2 },
-            );
-            expect.soft(isHit, `elementFromPoint at center of ${btn.label} tooltip`).toBe(true);
+            const tooltipDetails = await page.evaluate(() => {
+              const tip = document.querySelector('[role="tooltip"]');
+              if (!tip) return null;
+              const computed = window.getComputedStyle(tip);
+              const pointerEvents = computed.pointerEvents;
+              const tRect = tip.getBoundingClientRect();
+              const ancestors: Array<{
+                tag: string;
+                className: string;
+                overflowX: string;
+                overflowY: string;
+                rect: { left: number; top: number; right: number; bottom: number; width: number; height: number };
+              }> = [];
+
+              let current = tip.parentElement;
+              while (current) {
+                const s = window.getComputedStyle(current);
+                if (s.overflowX !== "visible" || s.overflowY !== "visible") {
+                  const r = current.getBoundingClientRect();
+                  ancestors.push({
+                    tag: current.tagName.toLowerCase(),
+                    className: current.className,
+                    overflowX: s.overflowX,
+                    overflowY: s.overflowY,
+                    rect: {
+                      left: r.left,
+                      top: r.top,
+                      right: r.right,
+                      bottom: r.bottom,
+                      width: r.width,
+                      height: r.height,
+                    },
+                  });
+                }
+                current = current.parentElement;
+              }
+
+              return {
+                pointerEvents,
+                tipRect: {
+                  left: tRect.left,
+                  top: tRect.top,
+                  right: tRect.right,
+                  bottom: tRect.bottom,
+                  width: tRect.width,
+                  height: tRect.height,
+                },
+                ancestors,
+              };
+            });
+
+            expect.soft(tooltipDetails).not.toBeNull();
+            if (tooltipDetails) {
+              expect.soft(tooltipDetails.pointerEvents, `${btn.label} tooltip pointer-events is none`).toBe("none");
+
+              console.log(
+                `[Tooltip ${btn.label}] Checked ancestors:`,
+                tooltipDetails.ancestors.map(
+                  (a) =>
+                    `${a.tag}${a.className ? "." + a.className.split(" ").join(".") : ""} (overflow-x: ${a.overflowX}, overflow-y: ${a.overflowY}) rect: [${a.rect.left}, ${a.rect.top}, ${a.rect.right}, ${a.rect.bottom}]`,
+                ),
+              );
+
+              for (const anc of tooltipDetails.ancestors) {
+                expect.soft(
+                  tooltipDetails.tipRect.left >= anc.rect.left - 0.5,
+                  `${btn.label} tooltip left (${tooltipDetails.tipRect.left}) >= ancestor ${anc.tag} left (${anc.rect.left}) - 0.5`,
+                ).toBe(true);
+                expect.soft(
+                  tooltipDetails.tipRect.top >= anc.rect.top - 0.5,
+                  `${btn.label} tooltip top (${tooltipDetails.tipRect.top}) >= ancestor ${anc.tag} top (${anc.rect.top}) - 0.5`,
+                ).toBe(true);
+                expect.soft(
+                  tooltipDetails.tipRect.right <= anc.rect.right + 0.5,
+                  `${btn.label} tooltip right (${tooltipDetails.tipRect.right}) <= ancestor ${anc.tag} right (${anc.rect.right}) + 0.5`,
+                ).toBe(true);
+                expect.soft(
+                  tooltipDetails.tipRect.bottom <= anc.rect.bottom + 0.5,
+                  `${btn.label} tooltip bottom (${tooltipDetails.tipRect.bottom}) <= ancestor ${anc.tag} bottom (${anc.rect.bottom}) + 0.5`,
+                ).toBe(true);
+              }
+
+              if (btn.label === "Lock") {
+                expect.soft(
+                  tooltipDetails.tipRect.right,
+                  `Lock button tooltip right edge (${tooltipDetails.tipRect.right}) <= .react-flow container right edge (${rfBox.x + rfBox.width}) - 4px`,
+                ).toBeLessThanOrEqual(rfBox.x + rfBox.width - 4);
+              }
+            }
           }
 
           // Move mouse away to clear tooltip before testing next button

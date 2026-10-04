@@ -114,7 +114,7 @@ function GraphToolbar({
   };
 
   return (
-    <Panel position="top-right" style={{ margin: "8px 32px 8px 8px" }} className="m-2">
+    <Panel position="top-right" style={{ margin: "8px" }} className="m-2">
       <div className="flex items-center rounded-md border border-line-strong bg-surface p-0.5 shadow-none">
         <Tooltip content="Zoom in" side="bottom">
           <button
@@ -152,7 +152,7 @@ function GraphToolbar({
 
         <div className="mx-0.5 h-4 w-px bg-line-strong" />
 
-        <Tooltip content={locked ? "Unlock graph" : "Lock graph"} side="bottom">
+        <Tooltip content={locked ? "Unlock graph" : "Lock graph"} side="bottom" align="end">
           <button
             type="button"
             onClick={onToggleLock}
