@@ -192,7 +192,7 @@ export function AlertsTimeseriesChart({ data }: { data: MetricsTimeseries | null
   const hasAlerts = data?.buckets.status === "ok" && data.buckets.value.some((b) => Object.keys(b.severity_counts).length > 0);
 
   return (
-    <div data-testid="overview-card" className="rounded-lg border border-line bg-surface p-4">
+    <div data-testid="overview-card" className="flex flex-col rounded-lg border border-line bg-surface p-4">
       <div className="mb-3">
         <h3 className="flex items-center gap-1 text-sm font-semibold text-zinc-500">
           Alerts over time
@@ -205,13 +205,14 @@ export function AlertsTimeseriesChart({ data }: { data: MetricsTimeseries | null
       ) : data.buckets.status === "pending_upstream" ? (
         <MetricState status="pending_upstream" />
       ) : (
-        <div className="relative" data-testid="timeseries-chart-container" data-slot-count={chartBuckets.length}>
+        <div className="relative min-h-[220px] flex-1" data-testid="timeseries-chart-container" data-slot-count={chartBuckets.length}>
           {!hasAlerts && (
             <p className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm text-zinc-500">
               No alerts in this range
             </p>
           )}
-          <ResponsiveContainer width="100%" height={220}>
+          <div className="absolute inset-0">
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartBuckets}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-800" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
@@ -237,6 +238,7 @@ export function AlertsTimeseriesChart({ data }: { data: MetricsTimeseries | null
               ))}
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </div>
       )}
     </div>

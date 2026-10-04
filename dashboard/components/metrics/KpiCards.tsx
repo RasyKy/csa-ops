@@ -106,9 +106,14 @@ export function KpiCards({ summary }: { summary: MetricsSummary | null }) {
         {summary.mttr.status === "ok" && summary.mttr.value ? (
           <p className="text-2xl font-semibold">{formatSeconds(summary.mttr.value.mean)}</p>
         ) : (
-          <p className="truncate text-sm text-zinc-500">
-            No live responses yet{dryRunCount > 0 ? ` (${dryRunCount} in practice mode)` : ""}
-          </p>
+          <div className="text-sm text-zinc-500">
+            <p>No live responses yet</p>
+            {dryRunCount > 0 && (
+              <p data-testid="mttr-practice-line" className="text-xs text-zinc-400">
+                {dryRunCount} logged in practice mode
+              </p>
+            )}
+          </div>
         )}
       </Card>
     </div>

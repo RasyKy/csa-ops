@@ -2,7 +2,7 @@ import React from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Time } from "@/components/ui/Time";
-import { describeResponseAction } from "@/lib/responseWording";
+import { describeResponseAction, describeResponseDetail } from "@/lib/responseText";
 import type { ResponseAction } from "@/lib/types";
 
 export function ResponseHistoryPanel({ history }: { history: ResponseAction[] }) {
@@ -22,6 +22,14 @@ export function ResponseHistoryPanel({ history }: { history: ResponseAction[] })
             >
               <div className="min-w-0 w-full">
                 <p className="text-sm text-ink">{describeResponseAction(a)}</p>
+                {describeResponseDetail(a) && (
+                  <p
+                    className="mt-0.5 break-words font-mono text-xs text-ink-muted"
+                    data-testid="response-detail"
+                  >
+                    {describeResponseDetail(a)}
+                  </p>
+                )}
                 {a.command_issued_time && (
                   <p className="mt-0.5 text-xs text-ink-subtle">
                     <Time iso={a.command_issued_time} />

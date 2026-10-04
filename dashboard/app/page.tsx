@@ -64,7 +64,7 @@ export default function OverviewPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isCancelled: () => boolean) => {
     const qs = `?range=${range}`;
     const since = sinceForRange(range);
     const incidentsQs = new URLSearchParams({ limit: String(INCIDENTS_FETCH_LIMIT), ...(since ? { since } : {}) });
@@ -79,19 +79,27 @@ export default function OverviewPage() {
         fetch(`/api/metrics/pipeline`).then((r) => r.json()),
         fetch(`/api/incidents?${incidentsQs.toString()}`).then((r) => r.json()),
       ]);
+      if (isCancelled()) return;
       setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents });
       setLastUpdated(new Date());
       setError(null);
     } catch {
+      if (isCancelled()) return;
       setError("Could not reach the backend.");
     }
   }, [range]);
 
   useEffect(() => {
+    // Set on range change or unmount so a late response for the previous range is discarded.
+    let cancelled = false;
+    const isCancelled = () => cancelled;
     setData(EMPTY_STATE); // show loading state immediately on range change, not stale data
-    load();
-    const interval = setInterval(load, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    load(isCancelled);
+    const interval = setInterval(() => load(isCancelled), POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [load]);
 
   const rangeIsEmpty =

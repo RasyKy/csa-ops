@@ -171,7 +171,7 @@ export function MitreHeatmap({ data }: { data: MetricsMitre | null }) {
                         onMouseEnter={() => setHovered(cell)}
                         onMouseLeave={() => setHovered(null)}
                         title={label}
-                        className={`line-clamp-2 break-words rounded px-2 py-1 text-xs leading-4 ${
+                        className={`line-clamp-3 break-words rounded px-2 py-1 text-xs leading-4 ${
                           cell.status === "fired"
                             ? fillFor(cell.count, maxCount)
                             : "border border-dashed border-zinc-300 text-zinc-500 dark:border-zinc-600"

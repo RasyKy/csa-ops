@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TriageBadge } from "@/components/TriageBadge";
+import { humanizeScenario } from "@/lib/incidentDisplay";
 import { isOpenIncident } from "@/lib/incidents";
 import { SEVERITY_HEX, SEVERITY_ORDER } from "@/lib/severity";
 import type { IncidentListItem, MetricsResponse } from "@/lib/types";
@@ -105,7 +106,7 @@ export function NeedsAttention({
                     {incident.user}
                   </span>
                   <span className="truncate text-zinc-500" title={incident.matched_scenario ?? undefined}>
-                    {incident.matched_scenario ?? "-"}
+                    {incident.matched_scenario ? humanizeScenario(incident.matched_scenario) : "-"}
                   </span>
                   <span className="justify-self-end whitespace-nowrap">
                     <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} prefix="AI:" />

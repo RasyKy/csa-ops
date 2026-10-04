@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Filters } from "@/components/Filters";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TriageBadge } from "@/components/TriageBadge";
+import { humanizeScenario } from "@/lib/incidentDisplay";
 import { deriveIncidentStatus, isOpenIncident } from "@/lib/incidents";
 import { describeResponseAction } from "@/lib/responseWording";
 import type { IncidentListItem, Severity } from "@/lib/types";
@@ -128,7 +129,9 @@ export function IncidentsView() {
         (inc) =>
           (inc.host && inc.host.toLowerCase().includes(q)) ||
           (inc.user && inc.user.toLowerCase().includes(q)) ||
-          (inc.matched_scenario && inc.matched_scenario.toLowerCase().includes(q))
+          (inc.matched_scenario &&
+            (inc.matched_scenario.toLowerCase().includes(q) ||
+              humanizeScenario(inc.matched_scenario).toLowerCase().includes(q)))
       );
     }
 
@@ -394,8 +397,11 @@ export function IncidentsView() {
                   <td className="py-2 pr-4 text-zinc-600 dark:text-zinc-400">
                     {incident.user}
                   </td>
-                  <td className="py-2 pr-4 font-mono text-xs text-zinc-600 dark:text-zinc-400">
-                    {incident.matched_scenario ?? "—"}
+                  <td
+                    className="py-2 pr-4 text-xs text-zinc-600 dark:text-zinc-400"
+                    title={incident.matched_scenario ?? undefined}
+                  >
+                    {incident.matched_scenario ? humanizeScenario(incident.matched_scenario) : "—"}
                   </td>
                   <td className="py-2 pr-4 text-right">
                     <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
@@ -487,8 +493,11 @@ export function IncidentsView() {
                 {incident.user}
               </div>
 
-              <div className="mb-2 font-mono text-xs text-zinc-600 dark:text-zinc-400">
-                {incident.matched_scenario ?? "—"}
+              <div
+                className="mb-2 text-xs text-zinc-600 dark:text-zinc-400"
+                title={incident.matched_scenario ?? undefined}
+              >
+                {incident.matched_scenario ? humanizeScenario(incident.matched_scenario) : "—"}
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-500 dark:border-zinc-800/80 dark:text-zinc-400">

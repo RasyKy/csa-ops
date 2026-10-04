@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
+import { AttackChainCard } from "@/components/chain/AttackChainCard";
 import { EventTimeline } from "@/components/EventTimeline";
 import { ExplainPanel } from "@/components/ExplainPanel";
 import { ExportReportDropdown } from "@/components/ExportReportDropdown";
-import { IncidentGraph } from "@/components/IncidentGraph";
 import { ResponseHistoryPanel } from "@/components/ResponseHistoryPanel";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -46,6 +46,15 @@ export default async function IncidentPage({ params }: { params: { id: string } 
 
   const status = deriveIncidentStatus(incident.response_history ?? []);
 
+  // Graph nodes carry rule_title and is_trigger but no timestamp; the chain
+  // nodes carry the timestamp. Join them so the title can use the earliest hit.
+  const chainTimes = new Map(incident.chain.nodes.map((n) => [n.event_id, n.timestamp ?? null]));
+  const titleNodes = graph.nodes.map((n) => ({
+    rule_title: n.rule_title,
+    is_trigger: n.is_trigger,
+    timestamp: chainTimes.get(n.event_id) ?? null,
+  }));
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-6">
       {/* Top back link & export report */}
@@ -63,7 +72,7 @@ export default async function IncidentPage({ params }: { params: { id: string } 
       {/* Title row */}
       <div className="mt-4 flex flex-wrap items-baseline gap-3">
         <h1 className="text-xl font-semibold text-ink">
-          {incidentTitle(incident)}
+          {incidentTitle(incident, titleNodes)}
         </h1>
         <span className="text-sm font-mono text-ink-subtle">
           {incident.incident_id}
@@ -115,15 +124,7 @@ export default async function IncidentPage({ params }: { params: { id: string } 
         <div className="space-y-6 min-w-0">
           <TriagePanel triage={incident.triage} />
 
-          <Card data-testid="attack-chain" className="overflow-hidden">
-            <CardHeader
-              title="Attack chain"
-              description="Drag to pan. Hold Ctrl or Cmd and scroll to zoom."
-            />
-            <CardBody flush>
-              <IncidentGraph graph={graph} chainNodes={incident.chain.nodes} />
-            </CardBody>
-          </Card>
+          <AttackChainCard graph={graph} chainNodes={incident.chain.nodes} />
 
           <Card>
             <CardHeader title="Event timeline" />
