@@ -18,6 +18,7 @@ import { SeverityBreakdown } from "@/components/metrics/SeverityBreakdown";
 import { TriagePanel } from "@/components/metrics/TriagePanel";
 import { sinceForRange } from "@/lib/range";
 import type {
+  CaseSummary,
   IncidentListItem,
   MetricsMitre,
   MetricsPipeline,
@@ -47,6 +48,8 @@ interface PageState {
   triage: MetricsTriage | null;
   pipeline: MetricsPipeline | null;
   incidents: IncidentListItem[] | null;
+  // null when the case service did not answer: every incident then counts as open.
+  cases: CaseSummary[] | null;
 }
 
 const EMPTY_STATE: PageState = {
@@ -58,6 +61,7 @@ const EMPTY_STATE: PageState = {
   triage: null,
   pipeline: null,
   incidents: null,
+  cases: null,
 };
 
 export default function OverviewPage() {
@@ -72,6 +76,9 @@ export default function OverviewPage() {
     const since = sinceForRange(range);
     const incidentsQs = new URLSearchParams({ limit: String(INCIDENTS_FETCH_LIMIT), ...(since ? { since } : {}) });
     try {
+      // The case summaries ride along in the same cycle. A failure there is not
+      // a poll failure: the Overview just counts every incident as open.
+      const casesRequest = fetch("/api/cases", { signal, cache: "no-store" }).catch(() => null);
       const responses = await Promise.all([
         fetch(`/api/metrics/summary${qs}`, { signal }),
         fetch(`/api/metrics/timeseries${qs}`, { signal }),
@@ -90,8 +97,18 @@ export default function OverviewPage() {
       }
       const [summary, timeseries, top, mitre, response, triage, pipeline, incidents] =
         await Promise.all(responses.map((r) => r.json() as Promise<unknown>));
+      const casesRes = await casesRequest;
+      let cases: CaseSummary[] | null = null;
+      if (casesRes && casesRes.ok) {
+        try {
+          const parsed: unknown = await casesRes.json();
+          if (Array.isArray(parsed)) cases = parsed as CaseSummary[];
+        } catch {
+          cases = null;
+        }
+      }
       if (isCancelled()) return false;
-      setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents } as PageState);
+      setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents, cases } as PageState);
       setLastUpdated(new Date());
       setError(null);
       return true;
@@ -187,7 +204,7 @@ export default function OverviewPage() {
       {/* Layout is identical across every range: sections always render in
           the same positions, counts show 0 when empty (a real value),
           averages show a placeholder instead. */}
-      <NeedsAttention incidents={data.incidents} response={data.response} />
+      <NeedsAttention incidents={data.incidents} response={data.response} cases={data.cases} />
 
       <div
         className={`mb-6 ${

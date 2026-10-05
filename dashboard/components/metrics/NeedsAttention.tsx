@@ -3,16 +3,17 @@ import Link from "next/link";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TriageBadge } from "@/components/TriageBadge";
 import { humanizeScenario } from "@/lib/incidentDisplay";
+import { effectiveCase, isUnresolved } from "@/lib/caseJoin";
 import { isOpenIncident } from "@/lib/incidents";
 import { SEVERITY_HEX, SEVERITY_ORDER } from "@/lib/severity";
-import type { IncidentListItem, MetricsResponse } from "@/lib/types";
+import type { CaseSummary, IncidentListItem, MetricsResponse } from "@/lib/types";
 import { AutomatedResponseStatus } from "./AutomatedResponseStatus";
 import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
 export { isOpenIncident };
 
-// Total (linked to /incidents?status=open) plus a per-severity breakdown,
+// Total (linked to /incidents?status=active) plus a per-severity breakdown,
 // most severe first -- each chip links to that exact filter combination
 // so the number shown and the list landed on always match.
 function OpenIncidentsCard({ incidents }: { incidents: IncidentListItem[] }) {
@@ -23,16 +24,16 @@ function OpenIncidentsCard({ incidents }: { incidents: IncidentListItem[] }) {
     <div data-testid="overview-card" className="rounded-lg border border-line bg-surface p-4">
       <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-zinc-500">
         Open incidents
-        <InfoTooltip text="Incidents whose most recent response action hasn't finished yet, or that have no response yet." />
+        <InfoTooltip text="Incidents whose case is open or being investigated. Resolving a case removes it from this count." />
       </div>
-      <Link href="/incidents?status=open" className="block w-fit text-2xl font-semibold hover:underline">
+      <Link href="/incidents?status=active" className="block w-fit text-2xl font-semibold hover:underline">
         {incidents.length}
       </Link>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {[...SEVERITY_ORDER].reverse().map((severity) => (
           <Link
             key={severity}
-            href={`/incidents?status=open&severity=${severity}`}
+            href={`/incidents?status=active&severity=${severity}`}
             className="flex items-center gap-1 text-xs hover:underline"
           >
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: SEVERITY_HEX[severity] }} />
@@ -55,11 +56,15 @@ function OpenIncidentsCard({ incidents }: { incidents: IncidentListItem[] }) {
 export function NeedsAttention({
   incidents,
   response,
+  cases = null,
 }: {
   incidents: IncidentListItem[] | null;
   response: MetricsResponse | null;
+  cases?: CaseSummary[] | null;
 }) {
-  const openIncidents = incidents?.filter(isOpenIncident) ?? null;
+  // Unresolved means the case is open or investigating; with no case data every
+  // incident counts as open.
+  const openIncidents = incidents?.filter((i) => isUnresolved(effectiveCase(i.incident_id, cases).status)) ?? null;
 
   return (
     <section className="mb-6">

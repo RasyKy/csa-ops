@@ -267,3 +267,47 @@ export interface MetricsPipeline {
   as_of: string;
   sources: Record<string, MetricValue<IndexHealth | null>>;
 }
+
+// --- Analyst cases (mirrors backend/app/models/case.py) ---
+
+export type CaseStatus = "open" | "investigating" | "resolved";
+
+export type Verdict = "true_positive" | "false_positive" | "benign_activity" | "undetermined";
+
+export type CaseEventType =
+  | "created"
+  | "status_changed"
+  | "assignee_changed"
+  | "note_added"
+  | "resolved"
+  | "reopened";
+
+export interface CaseEvent {
+  id: string;
+  time: string;
+  actor: string;
+  type: CaseEventType;
+  data: Record<string, unknown>;
+}
+
+export interface Case {
+  incident_id: string;
+  status: CaseStatus;
+  assignee: string | null;
+  verdict: Verdict | null;
+  resolution_note: string | null;
+  resolved_time: string | null;
+  updated_time: string | null;
+  events: CaseEvent[];
+  version: number;
+}
+
+export interface CaseSummary {
+  incident_id: string;
+  status: CaseStatus;
+  assignee: string | null;
+  verdict: Verdict | null;
+  updated_time: string | null;
+  resolved_time: string | null;
+  version: number;
+}
