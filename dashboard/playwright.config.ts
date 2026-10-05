@@ -31,6 +31,8 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  workers: 2,
+  expect: { timeout: 10_000 },
   globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL: "http://localhost:3000",

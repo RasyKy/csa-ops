@@ -178,9 +178,9 @@ test.describe("Event timeline", () => {
 
         // Assert custom node element count equals node count, and no default nodes exist
         const customNodes = page.locator(".react-flow__node-event");
-        expect(await customNodes.count()).toBe(nodes.length);
+        await expect(customNodes).toHaveCount(nodes.length);
         const defaultNodes = page.locator(".react-flow__node-default");
-        expect(await defaultNodes.count()).toBe(0);
+        await expect(defaultNodes).toHaveCount(0);
 
         const realErrors = consoleIssues.filter(
           (i) => !i.includes("Download the React DevTools") && !i.includes("is outdated"),
@@ -283,10 +283,12 @@ test.describe("AI analysis", () => {
     }
 
     // Assert custom node element count equals node count, and no default nodes exist
+    // The graph lays out after the page is idle, so wait for the nodes instead of
+    // counting them once.
     const customNodes = page.locator(".react-flow__node-event");
-    expect(await customNodes.count()).toBe(3);
+    await expect(customNodes).toHaveCount(3);
     const defaultNodes = page.locator(".react-flow__node-default");
-    expect(await defaultNodes.count()).toBe(0);
+    await expect(defaultNodes).toHaveCount(0);
 
     const realErrors = consoleIssues.filter(
       (i) => !i.includes("Download the React DevTools") && !i.includes("is outdated"),
@@ -488,10 +490,12 @@ test.describe("AI analysis", () => {
     expect(chevronAfter).not.toBe(chevronBefore);
 
     // Assert custom node element count equals node count, and no default nodes exist
+    // The graph lays out after the page is idle, so wait for the nodes instead of
+    // counting them once.
     const customNodes = page.locator(".react-flow__node-event");
-    expect(await customNodes.count()).toBe(3);
+    await expect(customNodes).toHaveCount(3);
     const defaultNodes = page.locator(".react-flow__node-default");
-    expect(await defaultNodes.count()).toBe(0);
+    await expect(defaultNodes).toHaveCount(0);
 
     const realErrors = consoleIssues.filter(
       (i) => !i.includes("Download the React DevTools") && !i.includes("is outdated"),

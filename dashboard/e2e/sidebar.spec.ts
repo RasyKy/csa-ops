@@ -390,14 +390,16 @@ test.describe("sidebar resizing behavior", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
+      // Handle is absent. The sidebar renders expanded first and switches to the
+      // stored collapsed state in an effect after hydration, so wait for it
+      // instead of counting once.
+      const handle = page.locator('div[role="separator"][aria-label="Resize sidebar"]');
+      await expect(handle).toHaveCount(0);
+
       const sidebar = page.locator("aside");
       const sidebarBox = await sidebar.boundingBox();
       expect(sidebarBox).not.toBeNull();
       expect(Math.round(sidebarBox!.width)).toBe(64);
-
-      // Handle is absent
-      const handle = page.locator('div[role="separator"][aria-label="Resize sidebar"]');
-      expect(await handle.count()).toBe(0);
 
       // Footer buttons: theme button and expand button
       const themeButton = page.locator('button[aria-label*="Switch to"]');

@@ -73,6 +73,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
                 type={show ? "text" : "password"}
                 autoComplete="current-password"
                 autoFocus
+                suppressHydrationWarning
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={error ? true : undefined}
