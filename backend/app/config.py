@@ -44,6 +44,12 @@ class Settings(BaseModel):
     llm_api_key: str = ""
     llm_timeout_seconds: int = 20
 
+    case_assignees: list[str] = ["Unassigned", "Analyst 1", "Analyst 2", "Analyst 3"]
+
+    app_env: str = "development"
+    demo_bootstrap: bool = False
+    demo_work_dir: str = ""
+
 
 def _bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
@@ -89,4 +95,8 @@ def get_settings() -> Settings:
         llm_base_url=os.getenv("LLM_BASE_URL", ""),
         llm_api_key=os.getenv("LLM_API_KEY", ""),
         llm_timeout_seconds=int(os.getenv("LLM_TIMEOUT_SECONDS", "20")),
+        case_assignees=_list_env("CASE_ASSIGNEES", ["Unassigned", "Analyst 1", "Analyst 2", "Analyst 3"]),
+        app_env=os.getenv("APP_ENV", "development"),
+        demo_bootstrap=_bool_env("DEMO_BOOTSTRAP", False),
+        demo_work_dir=os.getenv("DEMO_WORK_DIR", ""),
     )

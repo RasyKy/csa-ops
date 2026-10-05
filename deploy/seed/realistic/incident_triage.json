@@ -1,0 +1,90 @@
+{
+  "inc-1008": {
+    "incident_id": "inc-1008",
+    "triage_time": "2026-09-29T11:52:01.745Z",
+    "triage_started_time": "2026-09-29T11:51:59.414Z",
+    "verdict": "true_positive",
+    "confidence": "high",
+    "reason": "cmd.exe spawned wmic remote process create to 10.20.0.15 and psexec SMB to 10.20.0.16, coherent lateral movement chain with no benign explanation.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  },
+  "inc-1007": {
+    "incident_id": "inc-1007",
+    "triage_time": "2026-10-01T11:51:03.240Z",
+    "triage_started_time": "2026-10-01T11:51:01.714Z",
+    "verdict": "likely_true_positive",
+    "confidence": "medium",
+    "reason": "CcmExec.exe spawned PowerShell with -ExecutionPolicy Bypass -NoProfile -enc; base64 decodes to benign-looking 'Write-Output s7 simulated activity' but encoded bypass execution is suspicious.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  },
+  "inc-1006": {
+    "incident_id": "inc-1006",
+    "triage_time": "2026-10-03T09:59:26.545Z",
+    "triage_started_time": "2026-10-03T09:59:24.914Z",
+    "verdict": "true_positive",
+    "confidence": "high",
+    "reason": "Coherent malicious chain: macro doc spawns encoded PowerShell, discovery, Run-key persistence, comsvcs lsass dump, and exfil to remote IP.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  },
+  "inc-1005": {
+    "incident_id": "inc-1005",
+    "triage_time": "2026-10-03T21:53:03.316Z",
+    "triage_started_time": "2026-10-03T21:53:02.014Z",
+    "verdict": "true_positive",
+    "confidence": "high",
+    "reason": "Coherent chain: encoded hidden PowerShell spawns rundll32 comsvcs MiniDump of lsass, writes lsass.dmp, exfiltrates to remote IP, then deletes the dump.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  },
+  "inc-1004": {
+    "incident_id": "inc-1004",
+    "triage_time": "2026-10-04T02:52:16.272Z",
+    "triage_started_time": "2026-10-04T02:52:14.914Z",
+    "verdict": "true_positive",
+    "confidence": "high",
+    "reason": "Macro-enabled doc spawns cmd then hidden encoded PowerShell that drops svc_update.exe, beacons to 203.0.113.50:443, and sets Run-key persistence.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  },
+  "inc-1003": {
+    "incident_id": "inc-1003",
+    "triage_time": "2026-10-04T06:51:51.868Z",
+    "triage_started_time": "2026-10-04T06:51:50.314Z",
+    "verdict": "needs_review",
+    "confidence": "medium",
+    "reason": "explorer.exe spawning cmd.exe then whoami /all, ipconfig /all, and reg query Run key is discovery-like but could be benign admin/troubleshooting; no payload or network indicators.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  },
+  "inc-1002": {
+    "incident_id": "inc-1002",
+    "triage_time": "2026-10-04T09:41:24.489Z",
+    "triage_started_time": "2026-10-04T09:41:23.114Z",
+    "verdict": "likely_true_positive",
+    "confidence": "medium",
+    "reason": "explorer.exe spawned cmd.exe which ran reg.exe adding HKCU Run key pointing to AppData\\Roaming\\Corp\\updater.exe; classic T1547.001 persistence, though payload binary unverified.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  },
+  "inc-1001": {
+    "incident_id": "inc-1001",
+    "triage_time": "2026-10-04T11:16:10.041Z",
+    "triage_started_time": "2026-10-04T11:16:08.714Z",
+    "verdict": "likely_true_positive",
+    "confidence": "medium",
+    "reason": "Encoded hidden PowerShell spawned by explorer.exe matches T1059.001 obfuscated execution; decoded payload appears to be simulated activity, so intent is unconfirmed.",
+    "model": "openai/deepseek-chat",
+    "status": "ok",
+    "explain": null
+  }
+}

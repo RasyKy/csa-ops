@@ -1,0 +1,1270 @@
+[
+  {
+    "incident_id": "inc-1001",
+    "incident_raised_time": "2026-10-04T11:16:05.714Z",
+    "host": "WS06",
+    "user": "CORP\\grace",
+    "severity": "high",
+    "risk_score": 40,
+    "matched_scenario": null,
+    "techniques": [
+      "T1059.001"
+    ],
+    "tactics": [
+      "execution"
+    ],
+    "alert_ids": [
+      "alert-1001a"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s1-01",
+          "pid": 3540,
+          "ppid": 3384,
+          "image": "C:\\Windows\\explorer.exe",
+          "command_line": "C:\\Windows\\explorer.exe",
+          "timestamp": "2026-10-04T11:15:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS06",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s1-02",
+          "pid": 3584,
+          "ppid": 3540,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": "powershell.exe -nop -w hidden -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIAAnAHMAMQAgAHMAaQBtAHUAbABhAHQAZQBkACAAYQBjAHQAaQB2AGkAdAB5ACcA",
+          "timestamp": "2026-10-04T11:16:05.214Z",
+          "technique": "T1059.001",
+          "rule_id": "T1059.001_encoded_powershell",
+          "event_type": "process_start",
+          "host": "WS06",
+          "detail": null
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s1-01",
+          "to": "evt-s1-02",
+          "relation": "parent"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        3584
+      ],
+      "remote_ips": [],
+      "file_paths": []
+    }
+  },
+  {
+    "incident_id": "inc-1002",
+    "incident_raised_time": "2026-10-04T09:41:20.114Z",
+    "host": "WS07",
+    "user": "CORP\\hank",
+    "severity": "high",
+    "risk_score": 45,
+    "matched_scenario": null,
+    "techniques": [
+      "T1547.001"
+    ],
+    "tactics": [
+      "persistence"
+    ],
+    "alert_ids": [
+      "alert-1002a"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s2-01",
+          "pid": 3768,
+          "ppid": 3720,
+          "image": "C:\\Windows\\explorer.exe",
+          "command_line": "C:\\Windows\\explorer.exe",
+          "timestamp": "2026-10-04T09:40:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS07",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s2-02",
+          "pid": 3920,
+          "ppid": 3768,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe",
+          "timestamp": "2026-10-04T09:41:06.414Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS07",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s2-03",
+          "pid": 3944,
+          "ppid": 3920,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v CorpUpdater /t REG_SZ /d C:\\Users\\hank\\AppData\\Roaming\\Corp\\updater.exe /f",
+          "timestamp": "2026-10-04T09:41:18.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS07",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s2-04",
+          "pid": 3944,
+          "ppid": 3920,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": null,
+          "timestamp": "2026-10-04T09:41:19.614Z",
+          "technique": "T1547.001",
+          "rule_id": "T1547.001_run_key_persistence",
+          "event_type": "registry_event",
+          "host": "WS07",
+          "detail": "HKU\\S-1-5-21-1004336348-1177238915-682003330-1107\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\CorpUpdater"
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s2-01",
+          "to": "evt-s2-02",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s2-02",
+          "to": "evt-s2-03",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s2-02",
+          "to": "evt-s2-04",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s2-03",
+          "to": "evt-s2-04",
+          "relation": "registry"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        3944
+      ],
+      "remote_ips": [],
+      "file_paths": []
+    }
+  },
+  {
+    "incident_id": "inc-1003",
+    "incident_raised_time": "2026-10-04T06:51:47.314Z",
+    "host": "WS08",
+    "user": "CORP\\ivan",
+    "severity": "low",
+    "risk_score": 30,
+    "matched_scenario": null,
+    "techniques": [
+      "T1012"
+    ],
+    "tactics": [
+      "discovery"
+    ],
+    "alert_ids": [
+      "alert-1003a"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s3-01",
+          "pid": 3852,
+          "ppid": 3724,
+          "image": "C:\\Windows\\explorer.exe",
+          "command_line": "C:\\Windows\\explorer.exe",
+          "timestamp": "2026-10-04T06:50:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS08",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s3-02",
+          "pid": 3944,
+          "ppid": 3852,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe",
+          "timestamp": "2026-10-04T06:51:10.914Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS08",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s3-03",
+          "pid": 4028,
+          "ppid": 3944,
+          "image": "C:\\Windows\\System32\\whoami.exe",
+          "command_line": "whoami.exe /all",
+          "timestamp": "2026-10-04T06:51:22.614Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS08",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s3-04",
+          "pid": 4168,
+          "ppid": 3944,
+          "image": "C:\\Windows\\System32\\ipconfig.exe",
+          "command_line": "ipconfig.exe /all",
+          "timestamp": "2026-10-04T06:51:30.914Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS08",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s3-05",
+          "pid": 4216,
+          "ppid": 3944,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": "reg.exe query HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "timestamp": "2026-10-04T06:51:46.814Z",
+          "technique": "T1012",
+          "rule_id": "T1012_registry_query",
+          "event_type": "process_start",
+          "host": "WS08",
+          "detail": null
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s3-01",
+          "to": "evt-s3-02",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s3-02",
+          "to": "evt-s3-03",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s3-02",
+          "to": "evt-s3-04",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s3-02",
+          "to": "evt-s3-05",
+          "relation": "parent"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        4216
+      ],
+      "remote_ips": [],
+      "file_paths": []
+    }
+  },
+  {
+    "incident_id": "inc-1004",
+    "incident_raised_time": "2026-10-04T02:52:11.914Z",
+    "host": "WS09",
+    "user": "CORP\\judy",
+    "severity": "high",
+    "risk_score": 130,
+    "matched_scenario": "exfiltration_chain",
+    "techniques": [
+      "T1048",
+      "T1059.001",
+      "T1105",
+      "T1547.001"
+    ],
+    "tactics": [
+      "command_and_control",
+      "execution",
+      "exfiltration",
+      "persistence"
+    ],
+    "alert_ids": [
+      "alert-1004a",
+      "alert-1004b",
+      "alert-1004c",
+      "alert-1004d"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s4-01",
+          "pid": 3788,
+          "ppid": 3672,
+          "image": "C:\\Windows\\explorer.exe",
+          "command_line": "C:\\Windows\\explorer.exe",
+          "timestamp": "2026-10-04T02:50:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS09",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s4-02",
+          "pid": 3828,
+          "ppid": 3788,
+          "image": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+          "command_line": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE\" /n \"C:\\Users\\judy\\Downloads\\Invoice_2291.docm\"",
+          "timestamp": "2026-10-04T02:50:53.014Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS09",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s4-03",
+          "pid": 3972,
+          "ppid": 3828,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe",
+          "timestamp": "2026-10-04T02:51:07.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS09",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s4-04",
+          "pid": 4032,
+          "ppid": 3972,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": "powershell.exe -nop -w hidden -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIAAnAHMANAAgAHMAaQBtAHUAbABhAHQAZQBkACAAYQBjAHQAaQB2AGkAdAB5ACcA",
+          "timestamp": "2026-10-04T02:51:15.714Z",
+          "technique": "T1059.001",
+          "rule_id": "T1059.001_encoded_powershell",
+          "event_type": "process_start",
+          "host": "WS09",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s4-05",
+          "pid": 4032,
+          "ppid": 3972,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-10-04T02:51:40.314Z",
+          "technique": "T1105",
+          "rule_id": "T1105_file_drop",
+          "event_type": "file_event",
+          "host": "WS09",
+          "detail": "C:\\Users\\judy\\AppData\\Local\\Temp\\svc_update.exe"
+        },
+        {
+          "event_id": "evt-s4-06",
+          "pid": 4088,
+          "ppid": 4032,
+          "image": "C:\\Users\\judy\\AppData\\Local\\Temp\\svc_update.exe",
+          "command_line": "C:\\Users\\judy\\AppData\\Local\\Temp\\svc_update.exe",
+          "timestamp": "2026-10-04T02:51:43.414Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS09",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s4-07",
+          "pid": 4032,
+          "ppid": 3972,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-10-04T02:52:01.714Z",
+          "technique": "T1048",
+          "rule_id": "T1048_lolbin_exfil",
+          "event_type": "network_connection",
+          "host": "WS09",
+          "detail": "203.0.113.50:443"
+        },
+        {
+          "event_id": "evt-s4-08",
+          "pid": 4088,
+          "ppid": 4032,
+          "image": "C:\\Users\\judy\\AppData\\Local\\Temp\\svc_update.exe",
+          "command_line": null,
+          "timestamp": "2026-10-04T02:52:11.414Z",
+          "technique": "T1547.001",
+          "rule_id": "T1547.001_run_key_persistence",
+          "event_type": "registry_event",
+          "host": "WS09",
+          "detail": "HKU\\S-1-5-21-1004336348-1177238915-682003330-1109\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\CorpUpdater"
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s4-01",
+          "to": "evt-s4-02",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s4-02",
+          "to": "evt-s4-03",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s4-03",
+          "to": "evt-s4-04",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s4-03",
+          "to": "evt-s4-05",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s4-04",
+          "to": "evt-s4-05",
+          "relation": "file"
+        },
+        {
+          "from": "evt-s4-04",
+          "to": "evt-s4-06",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s4-03",
+          "to": "evt-s4-07",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s4-04",
+          "to": "evt-s4-07",
+          "relation": "network"
+        },
+        {
+          "from": "evt-s4-04",
+          "to": "evt-s4-08",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s4-06",
+          "to": "evt-s4-08",
+          "relation": "registry"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        4032,
+        4088
+      ],
+      "remote_ips": [
+        "203.0.113.50"
+      ],
+      "file_paths": [
+        "C:\\Users\\judy\\AppData\\Local\\Temp\\svc_update.exe"
+      ]
+    }
+  },
+  {
+    "incident_id": "inc-1005",
+    "incident_raised_time": "2026-10-03T21:52:59.014Z",
+    "host": "WS10",
+    "user": "CORP\\karl",
+    "severity": "high",
+    "risk_score": 120,
+    "matched_scenario": "credential_dump_chain",
+    "techniques": [
+      "T1003.001",
+      "T1048",
+      "T1059.001"
+    ],
+    "tactics": [
+      "credential_access",
+      "execution",
+      "exfiltration"
+    ],
+    "alert_ids": [
+      "alert-1005a",
+      "alert-1005b",
+      "alert-1005c"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s5-01",
+          "pid": 4128,
+          "ppid": 4036,
+          "image": "C:\\Windows\\explorer.exe",
+          "command_line": "C:\\Windows\\explorer.exe",
+          "timestamp": "2026-10-03T21:50:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS10",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s5-02",
+          "pid": 4216,
+          "ppid": 4128,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe",
+          "timestamp": "2026-10-03T21:51:04.314Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS10",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s5-03",
+          "pid": 4352,
+          "ppid": 4216,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": "powershell.exe -nop -w hidden -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIAAnAHMANQAgAHMAaQBtAHUAbABhAHQAZQBkACAAYQBjAHQAaQB2AGkAdAB5ACcA",
+          "timestamp": "2026-10-03T21:51:12.514Z",
+          "technique": "T1059.001",
+          "rule_id": "T1059.001_encoded_powershell",
+          "event_type": "process_start",
+          "host": "WS10",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s5-04",
+          "pid": 4392,
+          "ppid": 4352,
+          "image": "C:\\Windows\\System32\\whoami.exe",
+          "command_line": "whoami.exe /priv",
+          "timestamp": "2026-10-03T21:51:38.914Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS10",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s5-05",
+          "pid": 4500,
+          "ppid": 4352,
+          "image": "C:\\Windows\\System32\\rundll32.exe",
+          "command_line": "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 3876 C:\\Users\\karl\\AppData\\Local\\Temp\\lsass.dmp full",
+          "timestamp": "2026-10-03T21:52:20.614Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS10",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s5-06",
+          "pid": 4500,
+          "ppid": 4352,
+          "image": "C:\\Windows\\System32\\rundll32.exe",
+          "command_line": null,
+          "timestamp": "2026-10-03T21:52:22.914Z",
+          "technique": "T1003.001",
+          "rule_id": "T1003_lsass_access",
+          "event_type": "process_access",
+          "host": "WS10",
+          "detail": "lsass.exe (pid 3876)"
+        },
+        {
+          "event_id": "evt-s5-07",
+          "pid": 4500,
+          "ppid": 4352,
+          "image": "C:\\Windows\\System32\\rundll32.exe",
+          "command_line": null,
+          "timestamp": "2026-10-03T21:52:24.014Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "file_event",
+          "host": "WS10",
+          "detail": "C:\\Users\\karl\\AppData\\Local\\Temp\\lsass.dmp"
+        },
+        {
+          "event_id": "evt-s5-08",
+          "pid": 4352,
+          "ppid": 4216,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-10-03T21:52:58.514Z",
+          "technique": "T1048",
+          "rule_id": "T1048_lolbin_exfil",
+          "event_type": "network_connection",
+          "host": "WS10",
+          "detail": "198.51.100.23:443"
+        },
+        {
+          "event_id": "evt-s5-09",
+          "pid": 4520,
+          "ppid": 4352,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe /c del C:\\Users\\karl\\AppData\\Local\\Temp\\lsass.dmp",
+          "timestamp": "2026-10-03T21:54:00.514Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS10",
+          "detail": null
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s5-01",
+          "to": "evt-s5-02",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s5-02",
+          "to": "evt-s5-03",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s5-03",
+          "to": "evt-s5-04",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s5-03",
+          "to": "evt-s5-05",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s5-03",
+          "to": "evt-s5-06",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s5-03",
+          "to": "evt-s5-07",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s5-05",
+          "to": "evt-s5-07",
+          "relation": "file"
+        },
+        {
+          "from": "evt-s5-02",
+          "to": "evt-s5-08",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s5-03",
+          "to": "evt-s5-08",
+          "relation": "network"
+        },
+        {
+          "from": "evt-s5-03",
+          "to": "evt-s5-09",
+          "relation": "parent"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        4352,
+        4500
+      ],
+      "remote_ips": [
+        "198.51.100.23"
+      ],
+      "file_paths": [
+        "C:\\Users\\karl\\AppData\\Local\\Temp\\lsass.dmp"
+      ]
+    }
+  },
+  {
+    "incident_id": "inc-1006",
+    "incident_raised_time": "2026-10-03T09:59:21.914Z",
+    "host": "WS11",
+    "user": "CORP\\lena",
+    "severity": "high",
+    "risk_score": 190,
+    "matched_scenario": "credential_dump_chain",
+    "techniques": [
+      "T1003.001",
+      "T1012",
+      "T1048",
+      "T1059.001",
+      "T1105",
+      "T1547.001"
+    ],
+    "tactics": [
+      "command_and_control",
+      "credential_access",
+      "discovery",
+      "execution",
+      "exfiltration",
+      "persistence"
+    ],
+    "alert_ids": [
+      "alert-1006a",
+      "alert-1006b",
+      "alert-1006c",
+      "alert-1006d",
+      "alert-1006e",
+      "alert-1006f"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s6-01",
+          "pid": 3288,
+          "ppid": 3184,
+          "image": "C:\\Windows\\explorer.exe",
+          "command_line": "C:\\Windows\\explorer.exe",
+          "timestamp": "2026-10-03T09:50:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-02",
+          "pid": 3400,
+          "ppid": 3288,
+          "image": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+          "command_line": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE\" /n \"C:\\Users\\lena\\Downloads\\Q3_Report.docm\"",
+          "timestamp": "2026-10-03T09:50:50.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-03",
+          "pid": 3468,
+          "ppid": 3400,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": "powershell.exe -nop -w hidden -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIAAnAHMANgAgAHMAaQBtAHUAbABhAHQAZQBkACAAYQBjAHQAaQB2AGkAdAB5ACcA",
+          "timestamp": "2026-10-03T09:50:58.814Z",
+          "technique": "T1059.001",
+          "rule_id": "T1059.001_encoded_powershell",
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-04",
+          "pid": 3528,
+          "ppid": 3468,
+          "image": "C:\\Windows\\System32\\whoami.exe",
+          "command_line": "whoami.exe /all",
+          "timestamp": "2026-10-03T09:51:20.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-05",
+          "pid": 3684,
+          "ppid": 3468,
+          "image": "C:\\Windows\\System32\\net.exe",
+          "command_line": "net.exe user",
+          "timestamp": "2026-10-03T09:51:36.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-06",
+          "pid": 3812,
+          "ppid": 3468,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": "reg.exe query HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "timestamp": "2026-10-03T09:52:14.814Z",
+          "technique": "T1012",
+          "rule_id": "T1012_registry_query",
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-07",
+          "pid": 3468,
+          "ppid": 3400,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-10-03T09:53:39.814Z",
+          "technique": "T1105",
+          "rule_id": "T1105_file_drop",
+          "event_type": "file_event",
+          "host": "WS11",
+          "detail": "C:\\Users\\lena\\AppData\\Local\\Temp\\svc_update.exe"
+        },
+        {
+          "event_id": "evt-s6-08",
+          "pid": 3932,
+          "ppid": 3468,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe",
+          "timestamp": "2026-10-03T09:55:19.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-09",
+          "pid": 4076,
+          "ppid": 3932,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v CorpUpdater /t REG_SZ /d C:\\Users\\lena\\AppData\\Roaming\\Corp\\updater.exe /f",
+          "timestamp": "2026-10-03T09:56:04.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-10",
+          "pid": 4076,
+          "ppid": 3932,
+          "image": "C:\\Windows\\System32\\reg.exe",
+          "command_line": null,
+          "timestamp": "2026-10-03T09:56:06.114Z",
+          "technique": "T1547.001",
+          "rule_id": "T1547.001_run_key_persistence",
+          "event_type": "registry_event",
+          "host": "WS11",
+          "detail": "HKU\\S-1-5-21-1004336348-1177238915-682003330-1111\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\CorpUpdater"
+        },
+        {
+          "event_id": "evt-s6-11",
+          "pid": 4116,
+          "ppid": 3932,
+          "image": "C:\\Windows\\System32\\rundll32.exe",
+          "command_line": "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 3156 C:\\Users\\lena\\AppData\\Local\\Temp\\lsass.dmp full",
+          "timestamp": "2026-10-03T09:58:16.114Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-12",
+          "pid": 4116,
+          "ppid": 3932,
+          "image": "C:\\Windows\\System32\\rundll32.exe",
+          "command_line": null,
+          "timestamp": "2026-10-03T09:58:18.314Z",
+          "technique": "T1003.001",
+          "rule_id": "T1003_lsass_access",
+          "event_type": "process_access",
+          "host": "WS11",
+          "detail": "lsass.exe (pid 3156)"
+        },
+        {
+          "event_id": "evt-s6-13",
+          "pid": 4172,
+          "ppid": 3932,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": "powershell.exe -NoProfile -Command \"Write-Output 's6 simulated activity'\"",
+          "timestamp": "2026-10-03T09:59:18.314Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS11",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s6-14",
+          "pid": 4172,
+          "ppid": 3932,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-10-03T09:59:21.414Z",
+          "technique": "T1048",
+          "rule_id": "T1048_lolbin_exfil",
+          "event_type": "network_connection",
+          "host": "WS11",
+          "detail": "203.0.113.50:443"
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s6-01",
+          "to": "evt-s6-02",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-02",
+          "to": "evt-s6-03",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-03",
+          "to": "evt-s6-04",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-03",
+          "to": "evt-s6-05",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-03",
+          "to": "evt-s6-06",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-02",
+          "to": "evt-s6-07",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-03",
+          "to": "evt-s6-07",
+          "relation": "file"
+        },
+        {
+          "from": "evt-s6-03",
+          "to": "evt-s6-08",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-08",
+          "to": "evt-s6-09",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-08",
+          "to": "evt-s6-10",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-09",
+          "to": "evt-s6-10",
+          "relation": "registry"
+        },
+        {
+          "from": "evt-s6-08",
+          "to": "evt-s6-11",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-08",
+          "to": "evt-s6-12",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-08",
+          "to": "evt-s6-13",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-08",
+          "to": "evt-s6-14",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s6-13",
+          "to": "evt-s6-14",
+          "relation": "network"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        3468,
+        3812,
+        4076,
+        4116,
+        4172
+      ],
+      "remote_ips": [
+        "203.0.113.50"
+      ],
+      "file_paths": [
+        "C:\\Users\\lena\\AppData\\Local\\Temp\\svc_update.exe"
+      ]
+    }
+  },
+  {
+    "incident_id": "inc-1007",
+    "incident_raised_time": "2026-10-01T11:50:58.714Z",
+    "host": "WS12",
+    "user": "CORP\\mike",
+    "severity": "high",
+    "risk_score": 40,
+    "matched_scenario": null,
+    "techniques": [
+      "T1059.001"
+    ],
+    "tactics": [
+      "execution"
+    ],
+    "alert_ids": [
+      "alert-1007a"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s7-01",
+          "pid": 3340,
+          "ppid": 3324,
+          "image": "C:\\Windows\\CCM\\CcmExec.exe",
+          "command_line": "C:\\Windows\\CCM\\CcmExec.exe",
+          "timestamp": "2026-10-01T11:50:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS12",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s7-02",
+          "pid": 3364,
+          "ppid": 3340,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": "powershell.exe -ExecutionPolicy Bypass -NoProfile -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIAAnAHMANwAgAHMAaQBtAHUAbABhAHQAZQBkACAAYQBjAHQAaQB2AGkAdAB5ACcA",
+          "timestamp": "2026-10-01T11:50:58.214Z",
+          "technique": "T1059.001",
+          "rule_id": "T1059.001_encoded_powershell",
+          "event_type": "process_start",
+          "host": "WS12",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s7-03",
+          "pid": 3364,
+          "ppid": 3340,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-10-01T11:51:01.014Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "file_event",
+          "host": "WS12",
+          "detail": "C:\\ProgramData\\Corp\\inventory.csv"
+        },
+        {
+          "event_id": "evt-s7-04",
+          "pid": 3364,
+          "ppid": 3340,
+          "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "command_line": null,
+          "timestamp": "2026-10-01T11:51:02.914Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "network_connection",
+          "host": "WS12",
+          "detail": "10.20.0.5:443"
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s7-01",
+          "to": "evt-s7-02",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s7-01",
+          "to": "evt-s7-03",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s7-02",
+          "to": "evt-s7-03",
+          "relation": "file"
+        },
+        {
+          "from": "evt-s7-01",
+          "to": "evt-s7-04",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s7-02",
+          "to": "evt-s7-04",
+          "relation": "network"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        3364
+      ],
+      "remote_ips": [
+        "10.20.0.5"
+      ],
+      "file_paths": [
+        "C:\\ProgramData\\Corp\\inventory.csv"
+      ]
+    }
+  },
+  {
+    "incident_id": "inc-1008",
+    "incident_raised_time": "2026-09-29T11:51:56.414Z",
+    "host": "WS13",
+    "user": "CORP\\nina",
+    "severity": "high",
+    "risk_score": 80,
+    "matched_scenario": "lateral_movement_chain",
+    "techniques": [
+      "T1021.002",
+      "T1047"
+    ],
+    "tactics": [
+      "execution",
+      "lateral_movement"
+    ],
+    "alert_ids": [
+      "alert-1008a",
+      "alert-1008b"
+    ],
+    "chain": {
+      "nodes": [
+        {
+          "event_id": "evt-s8-01",
+          "pid": 3732,
+          "ppid": 3640,
+          "image": "C:\\Windows\\explorer.exe",
+          "command_line": "C:\\Windows\\explorer.exe",
+          "timestamp": "2026-09-29T11:50:46.814Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS13",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s8-02",
+          "pid": 3824,
+          "ppid": 3732,
+          "image": "C:\\Windows\\System32\\cmd.exe",
+          "command_line": "cmd.exe",
+          "timestamp": "2026-09-29T11:51:03.114Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS13",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s8-03",
+          "pid": 3932,
+          "ppid": 3824,
+          "image": "C:\\Windows\\System32\\wbem\\wmic.exe",
+          "command_line": "wmic.exe /node:10.20.0.15 process call create calc.exe",
+          "timestamp": "2026-09-29T11:51:15.914Z",
+          "technique": "T1047",
+          "rule_id": "T1047_wmi_lateral_movement",
+          "event_type": "process_start",
+          "host": "WS13",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s8-04",
+          "pid": 3932,
+          "ppid": 3824,
+          "image": "C:\\Windows\\System32\\wbem\\wmic.exe",
+          "command_line": null,
+          "timestamp": "2026-09-29T11:51:17.514Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "network_connection",
+          "host": "WS13",
+          "detail": "10.20.0.15:135"
+        },
+        {
+          "event_id": "evt-s8-05",
+          "pid": 3952,
+          "ppid": 3824,
+          "image": "C:\\Tools\\PSTools\\psexec.exe",
+          "command_line": "psexec.exe \\\\10.20.0.16 -accepteula hostname",
+          "timestamp": "2026-09-29T11:51:55.914Z",
+          "technique": "T1021.002",
+          "rule_id": "T1021_lateral_movement_smb",
+          "event_type": "process_start",
+          "host": "WS13",
+          "detail": null
+        },
+        {
+          "event_id": "evt-s8-06",
+          "pid": 3952,
+          "ppid": 3824,
+          "image": "C:\\Tools\\PSTools\\psexec.exe",
+          "command_line": null,
+          "timestamp": "2026-09-29T11:51:57.114Z",
+          "technique": null,
+          "rule_id": null,
+          "event_type": "network_connection",
+          "host": "WS13",
+          "detail": "10.20.0.16:445"
+        }
+      ],
+      "edges": [
+        {
+          "from": "evt-s8-01",
+          "to": "evt-s8-02",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s8-02",
+          "to": "evt-s8-03",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s8-02",
+          "to": "evt-s8-04",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s8-03",
+          "to": "evt-s8-04",
+          "relation": "network"
+        },
+        {
+          "from": "evt-s8-02",
+          "to": "evt-s8-05",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s8-02",
+          "to": "evt-s8-06",
+          "relation": "parent"
+        },
+        {
+          "from": "evt-s8-05",
+          "to": "evt-s8-06",
+          "relation": "network"
+        }
+      ]
+    },
+    "targets": {
+      "pids": [
+        3932,
+        3952
+      ],
+      "remote_ips": [
+        "10.20.0.15",
+        "10.20.0.16"
+      ],
+      "file_paths": []
+    }
+  }
+]

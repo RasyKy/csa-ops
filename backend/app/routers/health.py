@@ -17,3 +17,8 @@ def health():
         "kill_switch": kill_switch.is_set(),
         "response_mode": global_mode(settings.response_live),
     }
+
+
+@router.get("/healthz")
+def healthz():
+    return {"status": "ok"}

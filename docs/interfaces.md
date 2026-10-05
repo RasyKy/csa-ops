@@ -197,6 +197,72 @@ notable_details[], next_steps[], caveats[], generated_time}`.
 reports success. In dry-run it is still set (to the simulated execution
 moment) and `mode` distinguishes.
 
+## Cases
+
+Analyst case management. B owns the data; it lives in `cases.json` beside the
+other runtime files (`data/cases.json`, or `data/<NAME>/cases.json` for a named
+`FIXTURE_SET`, honoring `DATA_ROOT`), in every `STORE_BACKEND` mode. It never
+feeds detection, correlation, scoring, response actions or AI output. See
+`docs/cases.md` for the audit trail, the virtual default and the non-goals.
+
+### Case document
+
+```json
+{
+  "incident_id": "inc-1006",
+  "status": "open | investigating | resolved",
+  "assignee": "Analyst 1",
+  "verdict": "true_positive | false_positive | benign_activity | undetermined | null",
+  "resolution_note": "max 1000 chars, or null",
+  "resolved_time": "2026-10-04T10:05:00.000Z",
+  "updated_time": "2026-10-04T10:05:00.000Z",
+  "events": [
+    {"id": "evt-1", "time": "...", "actor": "analyst", "type": "created", "data": {}},
+    {"id": "evt-2", "time": "...", "actor": "Priya", "type": "assignee_changed", "data": {"from": null, "to": "Analyst 1"}}
+  ],
+  "version": 2
+}
+```
+
+`events[].type` is one of `created`, `status_changed` (`{from, to}`),
+`assignee_changed` (`{from, to}`), `note_added` (`{text}`), `resolved`
+(`{verdict, note}`), `reopened` (`{}`). Event ids are `evt-<n>`, sequential per
+case. `version` always equals the number of events. A case that has no stored
+data is virtual: status `open`, no assignee, no events, `version` 0, and
+nothing is written until the first mutation.
+
+### Endpoints (dashboard key)
+
+| Method and path | Body | Result |
+| --- | --- | --- |
+| `GET /cases?status=&assignee=` | | summaries (`incident_id, status, assignee, verdict, updated_time, resolved_time, version`) of incidents that have a stored case, newest update first. `assignee=Unassigned` matches no assignee. |
+| `GET /cases/assignees` | | the configured list (`CASE_ASSIGNEES`) |
+| `GET /incidents/{id}/case` | | the full Case (virtual default if none) |
+| `PATCH /incidents/{id}/case` | `{status?, assignee?, expected_version?}` | updated Case. `status` may be `open` or `investigating`. `assignee` must be in the list; `"Unassigned"` or `null` clears it. A change to the value already held is a no-op: no event, no version bump. |
+| `POST /incidents/{id}/case/notes` | `{text, expected_version?}` | updated Case. `text` is trimmed, 1 to 2000 characters, stored verbatim. |
+| `POST /incidents/{id}/case/resolve` | `{verdict, note?, expected_version?}` | updated Case. `note` is trimmed, max 1000. |
+| `POST /incidents/{id}/case/reopen` | `{expected_version?}` (body optional) | updated Case with status `investigating`; verdict, resolution note and resolved time cleared, all events kept. |
+
+The caller is named by the optional `X-Actor` header (trimmed, 1 to 64
+characters, default `analyst`). There are no user accounts; it is a label.
+
+### Error codes
+
+| Code | When |
+| --- | --- |
+| 401 / 403 | missing / wrong `X-API-Key` |
+| 404 | unknown incident id (checked against the active fixture set or the incidents index) |
+| 409 | `PATCH` with `status: "resolved"`; `PATCH` of status on a resolved case; resolving a resolved case; reopening a case that is not resolved; `expected_version` differs from the current version. Body: `{"detail": "...", "case": {<current Case>}}`. |
+| 422 | invalid body, unknown assignee, invalid verdict, empty or over-long note, invalid `X-Actor` |
+
+### Example
+
+```
+PATCH /incidents/inc-1006/case        {"assignee": "Analyst 1", "expected_version": 0}
+POST  /incidents/inc-1006/case/notes  {"text": "Word spawned PowerShell; checking the dropper."}
+POST  /incidents/inc-1006/case/resolve {"verdict": "true_positive", "note": "Confirmed phishing document."}
+```
+
 ## Metrics
 
 The metrics page (`GET /metrics/*`, `dashboard/app/metrics`) reads a subset

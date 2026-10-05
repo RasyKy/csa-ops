@@ -68,3 +68,12 @@ def resolve_store_paths(settings: Settings) -> dict:
         "response_actions_path": str(data_dir / "response_actions.json"),
         "incident_triage_path": str(data_dir / "incident_triage.json"),
     }
+
+
+def resolve_cases_path(settings: Settings) -> Path:
+    """cases.json beside the runtime data of the active set: DATA_ROOT/cases.json
+    for the default set, DATA_ROOT/NAME/cases.json for a named one. Only
+    computes the path; the case store creates the file on the first write."""
+    if is_default_set(settings.fixture_set):
+        return Path(settings.data_root) / "cases.json"
+    return Path(settings.data_root) / validate_set_name(settings.fixture_set) / "cases.json"

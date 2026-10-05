@@ -1,0 +1,173 @@
+[
+  {
+    "scenario_id": "s1",
+    "name": "ps_download_simple",
+    "incident_id": "inc-1001",
+    "host": "WS06",
+    "user": "CORP\\grace",
+    "event_count": 2,
+    "background_event_ids": [
+      "evt-s1-03",
+      "evt-s1-04",
+      "evt-s1-05"
+    ],
+    "alert_count": 1,
+    "expected_rules": [
+      "T1059.001_encoded_powershell"
+    ],
+    "narrative": "A user session launches a hidden, encoded PowerShell command and nothing else follows.",
+    "start_offset": "35m",
+    "start_time": "2026-10-04T11:15:46.814Z"
+  },
+  {
+    "scenario_id": "s2",
+    "name": "run_key_persistence",
+    "incident_id": "inc-1002",
+    "host": "WS07",
+    "user": "CORP\\hank",
+    "event_count": 4,
+    "background_event_ids": [
+      "evt-s2-05",
+      "evt-s2-06",
+      "evt-s2-07"
+    ],
+    "alert_count": 1,
+    "expected_rules": [
+      "T1547.001_run_key_persistence"
+    ],
+    "narrative": "A command prompt adds a CurrentVersion\\Run value with reg.exe to persist across logons.",
+    "start_offset": "2h10m",
+    "start_time": "2026-10-04T09:40:46.814Z"
+  },
+  {
+    "scenario_id": "s3",
+    "name": "discovery_burst",
+    "incident_id": "inc-1003",
+    "host": "WS08",
+    "user": "CORP\\ivan",
+    "event_count": 5,
+    "background_event_ids": [
+      "evt-s3-06",
+      "evt-s3-07",
+      "evt-s3-08"
+    ],
+    "alert_count": 1,
+    "expected_rules": [
+      "T1012_registry_query"
+    ],
+    "narrative": "A command prompt runs whoami, ipconfig and a reg.exe query of the Run key: noisy but low severity.",
+    "start_offset": "5h",
+    "start_time": "2026-10-04T06:50:46.814Z"
+  },
+  {
+    "scenario_id": "s4",
+    "name": "dropper_with_egress",
+    "incident_id": "inc-1004",
+    "host": "WS09",
+    "user": "CORP\\judy",
+    "event_count": 8,
+    "background_event_ids": [
+      "evt-s4-09",
+      "evt-s4-10",
+      "evt-s4-11"
+    ],
+    "alert_count": 4,
+    "expected_rules": [
+      "T1048_lolbin_exfil",
+      "T1059.001_encoded_powershell",
+      "T1105_file_drop",
+      "T1547.001_run_key_persistence"
+    ],
+    "narrative": "A macro document starts encoded PowerShell that drops an executable, runs it, calls out to an external address and sets a Run key.",
+    "start_offset": "9h",
+    "start_time": "2026-10-04T02:50:46.814Z"
+  },
+  {
+    "scenario_id": "s5",
+    "name": "credential_dump",
+    "incident_id": "inc-1005",
+    "host": "WS10",
+    "user": "CORP\\karl",
+    "event_count": 9,
+    "background_event_ids": [
+      "evt-s5-10",
+      "evt-s5-11",
+      "evt-s5-12"
+    ],
+    "alert_count": 3,
+    "expected_rules": [
+      "T1003_lsass_access",
+      "T1048_lolbin_exfil",
+      "T1059.001_encoded_powershell"
+    ],
+    "narrative": "Encoded PowerShell runs a comsvcs MiniDump against LSASS, writes the dump to Temp, calls out externally and deletes the dump.",
+    "start_offset": "14h",
+    "start_time": "2026-10-03T21:50:46.814Z"
+  },
+  {
+    "scenario_id": "s6",
+    "name": "full_intrusion_long",
+    "incident_id": "inc-1006",
+    "host": "WS11",
+    "user": "CORP\\lena",
+    "event_count": 14,
+    "background_event_ids": [
+      "evt-s6-15",
+      "evt-s6-16",
+      "evt-s6-17"
+    ],
+    "alert_count": 6,
+    "expected_rules": [
+      "T1003_lsass_access",
+      "T1012_registry_query",
+      "T1048_lolbin_exfil",
+      "T1059.001_encoded_powershell",
+      "T1105_file_drop",
+      "T1547.001_run_key_persistence"
+    ],
+    "narrative": "A multi-stage intrusion: macro document, encoded PowerShell, discovery, a dropped tool, a Run key, an LSASS dump and external egress.",
+    "start_offset": "26h",
+    "start_time": "2026-10-03T09:50:46.814Z"
+  },
+  {
+    "scenario_id": "s7",
+    "name": "admin_tool_false_positive",
+    "incident_id": "inc-1007",
+    "host": "WS12",
+    "user": "CORP\\mike",
+    "event_count": 4,
+    "background_event_ids": [
+      "evt-s7-05",
+      "evt-s7-06",
+      "evt-s7-07"
+    ],
+    "alert_count": 1,
+    "expected_rules": [
+      "T1059.001_encoded_powershell"
+    ],
+    "narrative": "The corporate management agent runs an encoded PowerShell inventory job; the rule fires but the activity is legitimate.",
+    "start_offset": "3d",
+    "start_time": "2026-10-01T11:50:46.814Z"
+  },
+  {
+    "scenario_id": "s8",
+    "name": "outbound_lateral_attempt",
+    "incident_id": "inc-1008",
+    "host": "WS13",
+    "user": "CORP\\nina",
+    "event_count": 6,
+    "background_event_ids": [
+      "evt-s8-07",
+      "evt-s8-08",
+      "evt-s8-09"
+    ],
+    "alert_count": 2,
+    "expected_rules": [
+      "T1021_lateral_movement_smb",
+      "T1047_wmi_lateral_movement"
+    ],
+    "narrative": "A command prompt tries WMI process creation and PsExec against two internal hosts.",
+    "start_offset": "5d",
+    "start_time": "2026-09-29T11:50:46.814Z"
+  }
+]
