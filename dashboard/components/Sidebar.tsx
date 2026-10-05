@@ -1,10 +1,12 @@
 "use client";
 
+import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { ThemeToggle } from "./ThemeToggle";
+import { Tooltip } from "./ui/Tooltip";
 
 function OverviewIcon() {
   return (
@@ -264,6 +266,18 @@ export function Sidebar() {
     updateWidth(DEFAULT_W);
   };
 
+  const signOut = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.assign("/login");
+    }
+  };
+
+  // The login page is full width with no navigation. Every hook above has
+  // already run, so returning here keeps hook order stable.
+  if (pathname === "/login") return null;
+
   const widthStyle = collapsed ? undefined : "var(--sidebar-width, 240px)";
 
   return (
@@ -324,10 +338,30 @@ export function Sidebar() {
           >
             <ChevronIcon collapsed={true} className="chevron-icon h-[18px] w-[18px]" />
           </button>
+          <Tooltip content="Sign out">
+            <button
+              type="button"
+              onClick={signOut}
+              aria-label="Sign out"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100"
+            >
+              <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
+            </button>
+          </Tooltip>
         </div>
       ) : (
         <div className="sidebar-footer flex items-center justify-between gap-2 border-t border-zinc-200 p-2 dark:border-zinc-800">
           <ThemeToggle className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100" />
+          <Tooltip content="Sign out">
+            <button
+              type="button"
+              onClick={signOut}
+              aria-label="Sign out"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </Tooltip>
           <button
             type="button"
             onClick={toggle}
