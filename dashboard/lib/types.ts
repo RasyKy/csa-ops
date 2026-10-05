@@ -27,6 +27,9 @@ export interface ChainNode {
   timestamp: string;
   technique: string | null;
   rule_id: string | null;
+  event_type?: string | null;
+  host?: string | null;
+  detail?: string | null;
 }
 
 export type EdgeRelation = "parent" | "network" | "file" | "registry";
@@ -120,6 +123,9 @@ export interface GraphNode {
   rule_id: string | null;
   rule_title: string | null;
   is_trigger: boolean;
+  event_type?: string | null;
+  host?: string | null;
+  detail?: string | null;
 }
 
 export interface Graph {

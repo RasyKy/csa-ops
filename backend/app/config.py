@@ -6,11 +6,14 @@ safe. See docs/interfaces.md for the data contracts these values support.
 import json
 import os
 from functools import lru_cache
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
 load_dotenv()
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseModel):
@@ -18,6 +21,9 @@ class Settings(BaseModel):
     agent_api_key: str = "changeme-agent-key"
 
     store_backend: str = "fixtures"
+    fixture_set: str = "default"
+    fixture_root: str = str(REPO_ROOT / "fixtures")
+    data_root: str = str(REPO_ROOT / "data")
     fixtures_dir: str = "fixtures"
     intake_state_path: str = "./data/intake_state.json"
     response_actions_path: str = "./data/response_actions.json"
@@ -37,6 +43,12 @@ class Settings(BaseModel):
     llm_base_url: str = ""
     llm_api_key: str = ""
     llm_timeout_seconds: int = 20
+
+    case_assignees: list[str] = ["Unassigned", "Analyst 1", "Analyst 2", "Analyst 3"]
+
+    app_env: str = "development"
+    demo_bootstrap: bool = False
+    demo_work_dir: str = ""
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -64,6 +76,9 @@ def get_settings() -> Settings:
         dashboard_api_key=os.getenv("DASHBOARD_API_KEY", "changeme-dashboard-key"),
         agent_api_key=os.getenv("AGENT_API_KEY", "changeme-agent-key"),
         store_backend=os.getenv("STORE_BACKEND", "fixtures"),
+        fixture_set=os.getenv("FIXTURE_SET", "default"),
+        fixture_root=os.getenv("FIXTURE_ROOT", str(REPO_ROOT / "fixtures")),
+        data_root=os.getenv("DATA_ROOT", str(REPO_ROOT / "data")),
         fixtures_dir=os.getenv("FIXTURES_DIR", "fixtures"),
         intake_state_path=os.getenv("INTAKE_STATE_PATH", "./data/intake_state.json"),
         response_actions_path=os.getenv("RESPONSE_ACTIONS_PATH", "./data/response_actions.json"),
@@ -80,4 +95,8 @@ def get_settings() -> Settings:
         llm_base_url=os.getenv("LLM_BASE_URL", ""),
         llm_api_key=os.getenv("LLM_API_KEY", ""),
         llm_timeout_seconds=int(os.getenv("LLM_TIMEOUT_SECONDS", "20")),
+        case_assignees=_list_env("CASE_ASSIGNEES", ["Unassigned", "Analyst 1", "Analyst 2", "Analyst 3"]),
+        app_env=os.getenv("APP_ENV", "development"),
+        demo_bootstrap=_bool_env("DEMO_BOOTSTRAP", False),
+        demo_work_dir=os.getenv("DEMO_WORK_DIR", ""),
     )

@@ -1,32 +1,64 @@
+import React from "react";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { TriageBadge } from "@/components/TriageBadge";
+import { Notice } from "@/components/ui/Notice";
+import { Time } from "@/components/ui/Time";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { displayModel } from "@/lib/incidentDisplay";
+import { tzLabel } from "@/lib/time";
 import type { IncidentTriage } from "@/lib/types";
 
 export function TriagePanel({ triage }: { triage: IncidentTriage | null }) {
+  const confidenceText = triage?.confidence
+    ? `${triage.confidence.charAt(0).toUpperCase() + triage.confidence.slice(1).toLowerCase()} confidence`
+    : null;
+
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">AI Triage</h3>
-      {!triage && <p className="text-sm text-zinc-500">No triage yet.</p>}
-      {triage?.status === "failed" && (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Triage failed (model unreachable or output invalid). Response actions were not affected.
-        </p>
-      )}
-      {triage?.status === "ok" && (
-        <dl className="space-y-1 text-sm">
-          <Row label="Verdict" value={<TriageBadge verdict={triage.verdict} />} />
-          <Row label="Confidence" value={triage.confidence ?? "—"} />
-          <Row label="Reason" value={triage.reason ?? "—"} />
-        </dl>
-      )}
-    </div>
+    <Card>
+      <CardHeader
+        title="AI triage"
+        actions={
+          triage ? (
+            <TriageBadge verdict={triage.verdict} status={triage.status} />
+          ) : null
+        }
+      />
+      <CardBody>
+        {!triage && <p className="text-sm text-ink-subtle">No triage result yet.</p>}
+
+        {triage?.status === "failed" && (
+          <Notice tone="neutral">
+            Triage failed (model unreachable or output invalid). Response actions were not affected.
+          </Notice>
+        )}
+
+        {triage?.status === "ok" && (
+          <div className="space-y-3">
+            {confidenceText && (
+              <p className="text-sm text-ink-muted">{confidenceText}</p>
+            )}
+
+            {triage.reason && (
+              <p className="text-sm leading-6 text-ink">{triage.reason}</p>
+            )}
+
+            <div className="text-xs text-ink-subtle">
+              Model{" "}
+              <Tooltip content={triage.model}>
+                <span
+                  tabIndex={0}
+                  className="cursor-help underline decoration-dotted text-ink"
+                >
+                  {displayModel(triage.model)}
+                </span>
+              </Tooltip>{" "}
+              · Triaged <Time iso={triage.triage_time} />{" "}
+              <span>{tzLabel()}</span>
+            </div>
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className="text-right">{value}</dd>
-    </div>
-  );
-}

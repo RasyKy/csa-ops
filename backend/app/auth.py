@@ -13,6 +13,15 @@ def require_dashboard_key(api_key: Optional[str] = Depends(_api_key_header)) -> 
     return _check(api_key, get_settings().dashboard_api_key)
 
 
+def require_dashboard_key_in_production(
+    api_key: Optional[str] = Depends(_api_key_header),
+) -> Optional[str]:
+    settings = get_settings()
+    if settings.app_env == "production":
+        return _check(api_key, settings.dashboard_api_key)
+    return api_key
+
+
 def require_agent_key(api_key: Optional[str] = Depends(_api_key_header)) -> str:
     return _check(api_key, get_settings().agent_api_key)
 

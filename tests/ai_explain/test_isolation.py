@@ -129,3 +129,66 @@ def test_commander_module_never_imports_ai_explain():
             imported.add(node.module)
 
     assert not any(name == "engine.ai_explain" or name.startswith("engine.ai_explain.") for name in imported)
+
+
+# --- Analyst cases (Step 11a): case data must never reach detection, response
+# or AI, and those packages must never reach case data. Both directions. ---
+
+CASE_MODULES = [
+    "backend.app.models.case",
+    "backend.app.store.case_store",
+    "backend.app.routers.cases",
+]
+CASE_PREFIXES = tuple(CASE_MODULES)
+ENGINE_FORBIDDEN_FOR_CASES = ("engine.response", "engine.ai_explain")
+
+
+def _package_modules(package: str) -> list[str]:
+    folder = REPO_ROOT / Path(*package.split("."))
+    return [f"{package}.{p.stem}" for p in sorted(folder.glob("*.py")) if p.stem != "__init__"] + [package]
+
+
+def test_case_modules_exist_and_are_not_stubs():
+    for module_name in CASE_MODULES:
+        path = _module_to_path(module_name)
+        assert path is not None, f"{module_name} has no source file"
+        tree = ast.parse(path.read_text())
+        assert any(isinstance(n, (ast.FunctionDef, ast.ClassDef)) for n in ast.iter_child_nodes(tree)), module_name
+
+
+def test_case_modules_never_reach_engine_response_or_ai_explain():
+    reached = _walk_import_graph(CASE_MODULES)
+    offending = sorted(m for m in reached if m.startswith(ENGINE_FORBIDDEN_FOR_CASES))
+    assert offending == [], f"case modules reach response or AI code: {offending}"
+
+
+def test_case_modules_directly_import_nothing_from_engine():
+    for module_name in CASE_MODULES:
+        imported = _direct_imports(_module_to_path(module_name), module_name.rsplit(".", 1)[0])
+        assert not [m for m in imported if m == "engine" or m.startswith("engine.")], module_name
+
+
+def test_engine_response_and_ai_explain_never_reach_case_modules():
+    entries = _package_modules("engine.response") + _package_modules("engine.ai_explain")
+    reached = _walk_import_graph(entries)
+    offending = sorted(m for m in reached if m.startswith(CASE_PREFIXES))
+    assert offending == [], f"response or AI code reaches case modules: {offending}"
+
+
+def test_engine_response_and_ai_explain_never_name_the_case_modules_in_source():
+    for module_name in _package_modules("engine.response") + _package_modules("engine.ai_explain"):
+        source = _module_to_path(module_name).read_text()
+        assert "cases.json" not in source, module_name
+        assert "case_store" not in source, module_name
+        assert "models.case" not in source, module_name
+
+
+def test_isolation_walker_would_catch_a_case_import(tmp_path, monkeypatch):
+    # Guards against a vacuous pass: a module that did import the case store
+    # must show up in the walk.
+    fake = tmp_path / "engine" / "ai_explain"
+    fake.mkdir(parents=True)
+    (fake / "__init__.py").write_text("")
+    (fake / "sneaky.py").write_text("from backend.app.store import case_store")
+    imported = _direct_imports(fake / "sneaky.py", "engine.ai_explain")
+    assert "backend.app.store.case_store" in imported

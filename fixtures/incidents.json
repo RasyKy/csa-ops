@@ -20,7 +20,10 @@
           "command_line": "cmd.exe /c reg.exe query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
           "timestamp": "2026-09-10T09:12:03.900Z",
           "technique": null,
-          "rule_id": null
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS03",
+          "detail": null
         },
         {
           "event_id": "evt-0001-2",
@@ -30,7 +33,10 @@
           "command_line": "reg.exe query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
           "timestamp": "2026-09-10T09:12:04.500Z",
           "technique": "T1012",
-          "rule_id": "T1012_registry_query"
+          "rule_id": "T1012_registry_query",
+          "event_type": "process_start",
+          "host": "WS03",
+          "detail": null
         },
         {
           "event_id": "evt-0001-3",
@@ -40,7 +46,10 @@
           "command_line": null,
           "timestamp": "2026-09-10T09:12:04.700Z",
           "technique": null,
-          "rule_id": null
+          "rule_id": null,
+          "event_type": "file_event",
+          "host": "WS03",
+          "detail": "C:\\Users\\dave\\AppData\\Local\\Temp\\reg_output.txt"
         }
       ],
       "edges": [
@@ -75,7 +84,10 @@
           "command_line": "powershell.exe -nop -w hidden -enc SQBFAFgA...==",
           "timestamp": "2026-09-11T14:02:10.100Z",
           "technique": "T1059.001",
-          "rule_id": "T1059.001_encoded_powershell"
+          "rule_id": "T1059.001_encoded_powershell",
+          "event_type": "process_start",
+          "host": "WS02",
+          "detail": null
         },
         {
           "event_id": "evt-0002-2",
@@ -85,7 +97,10 @@
           "command_line": null,
           "timestamp": "2026-09-11T14:02:12.800Z",
           "technique": "T1105",
-          "rule_id": "T1105_file_drop"
+          "rule_id": "T1105_file_drop",
+          "event_type": "file_event",
+          "host": "WS02",
+          "detail": "C:\\Users\\bob\\AppData\\Local\\Temp\\update.exe"
         },
         {
           "event_id": "evt-0002-3",
@@ -95,7 +110,10 @@
           "command_line": "update.exe",
           "timestamp": "2026-09-11T14:02:13.100Z",
           "technique": null,
-          "rule_id": null
+          "rule_id": null,
+          "event_type": "process_start",
+          "host": "WS02",
+          "detail": null
         }
       ],
       "edges": [
@@ -130,7 +148,10 @@
           "command_line": "cmd.exe /c powershell.exe -nop -w hidden -enc SQBFAFgA...==",
           "timestamp": "2026-09-13T10:15:01.200Z",
           "technique": "T1059.001",
-          "rule_id": "T1059.001_encoded_powershell"
+          "rule_id": "T1059.001_encoded_powershell",
+          "event_type": "process_start",
+          "host": "WS01",
+          "detail": null
         },
         {
           "event_id": "evt-0003-2",
@@ -140,7 +161,10 @@
           "command_line": "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 624 C:\\Users\\alice\\AppData\\Local\\Temp\\lsass.dmp full",
           "timestamp": "2026-09-13T10:15:02.123Z",
           "technique": "T1003",
-          "rule_id": "T1003_lsass_access"
+          "rule_id": "T1003_lsass_access",
+          "event_type": "process_access",
+          "host": "WS01",
+          "detail": null
         },
         {
           "event_id": "evt-0003-3",
@@ -150,7 +174,10 @@
           "command_line": null,
           "timestamp": "2026-09-13T10:15:02.900Z",
           "technique": null,
-          "rule_id": null
+          "rule_id": null,
+          "event_type": "network_connection",
+          "host": "WS01",
+          "detail": "203.0.113.7"
         }
       ],
       "edges": [
@@ -185,7 +212,10 @@
           "command_line": "wmic /node:10.0.0.20 process call create \"cmd.exe /c whoami\"",
           "timestamp": "2026-09-12T22:40:00.000Z",
           "technique": "T1047",
-          "rule_id": "T1047_wmi_lateral_movement"
+          "rule_id": "T1047_wmi_lateral_movement",
+          "event_type": "process_start",
+          "host": "WS04",
+          "detail": null
         },
         {
           "event_id": "evt-0004-2",
@@ -195,7 +225,10 @@
           "command_line": null,
           "timestamp": "2026-09-12T22:40:03.400Z",
           "technique": null,
-          "rule_id": null
+          "rule_id": null,
+          "event_type": "network_connection",
+          "host": "WS04",
+          "detail": null
         },
         {
           "event_id": "evt-0004-3",
@@ -205,7 +238,10 @@
           "command_line": "wmic /node:10.0.0.21 process call create \"cmd.exe /c whoami\"",
           "timestamp": "2026-09-12T22:40:05.700Z",
           "technique": "T1021",
-          "rule_id": "T1021_lateral_movement_smb"
+          "rule_id": "T1021_lateral_movement_smb",
+          "event_type": "process_start",
+          "host": "WS04",
+          "detail": null
         }
       ],
       "edges": [
@@ -240,7 +276,10 @@
           "command_line": "cmd.exe /c for /L %i in (1,1,254) do ping -n 1 10.0.0.%i",
           "timestamp": "2026-08-01T08:00:00.000Z",
           "technique": "T1046",
-          "rule_id": "T1046_port_scan"
+          "rule_id": "T1046_port_scan",
+          "event_type": "process_start",
+          "host": "WS05",
+          "detail": null
         },
         {
           "event_id": "evt-0005-2",
@@ -250,7 +289,10 @@
           "command_line": null,
           "timestamp": "2026-08-01T08:00:04.000Z",
           "technique": null,
-          "rule_id": null
+          "rule_id": null,
+          "event_type": "network_connection",
+          "host": "WS05",
+          "detail": null
         }
       ],
       "edges": [

@@ -1,10 +1,64 @@
-const VERDICT_COLORS: Record<string, string> = {
-  true_positive: "bg-red-300 text-red-950 dark:bg-red-800 dark:text-red-50",
-  likely_true_positive: "bg-orange-300 text-orange-950 dark:bg-orange-800 dark:text-orange-50",
-  needs_review: "bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100",
-  likely_false_positive: "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200",
-  false_positive: "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200",
+import React from "react";
+import {
+  ShieldAlert,
+  ShieldCheck,
+  CircleHelp,
+  Clock,
+  TriangleAlert,
+} from "lucide-react";
+
+export const TRIAGE_BADGE_STYLES = {
+  container:
+    "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full border border-line-strong bg-surface text-xs font-medium text-ink select-none",
+  wrapper: "inline-flex items-center",
+  prefix: "mr-1 text-xs text-ink-subtle",
+  iconSize: "h-3.5 w-3.5 shrink-0",
+  verdicts: {
+    true_positive: {
+      label: "True positive",
+      icon: ShieldAlert,
+      iconColor: "text-red-500 dark:text-red-400",
+    },
+    likely_true_positive: {
+      label: "Likely true positive",
+      icon: ShieldAlert,
+      iconColor: "text-orange-600 dark:text-orange-500",
+    },
+    needs_review: {
+      label: "Needs review",
+      icon: CircleHelp,
+      iconColor: "text-amber-600 dark:text-amber-500",
+    },
+    likely_false_positive: {
+      label: "Likely false positive",
+      icon: ShieldCheck,
+      iconColor: "text-zinc-500 dark:text-zinc-400",
+    },
+    false_positive: {
+      label: "False positive",
+      icon: ShieldCheck,
+      iconColor: "text-zinc-500 dark:text-zinc-400",
+    },
+    pending: {
+      label: "Pending",
+      icon: Clock,
+      iconColor: "text-zinc-500 dark:text-zinc-400",
+    },
+    failed: {
+      label: "Failed",
+      icon: TriangleAlert,
+      iconColor: "text-red-500 dark:text-red-400",
+    },
+  },
 };
+
+export interface TriageBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  verdict: string | null;
+  status?: "ok" | "failed" | null;
+  prefix?: string;
+  className?: string;
+  "data-testid"?: string;
+}
 
 // `prefix` (e.g. "AI:") disambiguates this from case status wherever both
 // might appear in the same row -- opt-in so /incidents' table (which has
@@ -13,39 +67,38 @@ export function TriageBadge({
   verdict,
   status,
   prefix,
-}: {
-  verdict: string | null;
-  status?: "ok" | "failed" | null;
-  prefix?: string;
-}) {
-  const label = prefix && <span className="mr-1 text-xs text-zinc-500">{prefix}</span>;
+  className = "",
+  "data-testid": testId,
+  ...props
+}: TriageBadgeProps) {
+  let entry = TRIAGE_BADGE_STYLES.verdicts.pending;
 
   if (status === "failed") {
-    return (
-      <span className="inline-flex items-center">
-        {label}
-        <span className="inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
-          failed
-        </span>
-      </span>
-    );
+    entry = TRIAGE_BADGE_STYLES.verdicts.failed;
+  } else if (verdict && verdict in TRIAGE_BADGE_STYLES.verdicts) {
+    entry = TRIAGE_BADGE_STYLES.verdicts[verdict as keyof typeof TRIAGE_BADGE_STYLES.verdicts];
+  } else if (verdict) {
+    const formatted = verdict.replace(/_/g, " ");
+    const sentenceCase = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    entry = {
+      label: sentenceCase,
+      icon: CircleHelp,
+      iconColor: "text-zinc-500 dark:text-zinc-400",
+    };
   }
 
-  if (!verdict) {
-    return (
-      <span className="inline-flex items-center">
-        {label}
-        <span className="text-xs text-zinc-500">pending</span>
-      </span>
-    );
-  }
+  const Icon = entry.icon;
 
-  const colors = VERDICT_COLORS[verdict] ?? "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200";
   return (
-    <span className="inline-flex items-center">
-      {label}
-      <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${colors}`}>
-        {verdict.replace(/_/g, " ")}
+    <span className={`${TRIAGE_BADGE_STYLES.wrapper} ${className}`.trim()}>
+      {prefix && <span className={TRIAGE_BADGE_STYLES.prefix}>{prefix}</span>}
+      <span
+        data-testid={testId}
+        className={TRIAGE_BADGE_STYLES.container}
+        {...props}
+      >
+        <Icon className={`${TRIAGE_BADGE_STYLES.iconSize} ${entry.iconColor}`} aria-hidden="true" />
+        <span>{entry.label}</span>
       </span>
     </span>
   );

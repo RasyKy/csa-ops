@@ -18,8 +18,8 @@ export function TriagePanel({ data }: { data: MetricsTriage | null }) {
     : undefined;
 
   return (
-    <div className="rounded border border-zinc-200 p-3 dark:border-zinc-800">
-      <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+    <div data-testid="overview-card" className="rounded-lg border border-line bg-surface p-3">
+      <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold text-zinc-500">
         AI triage
         <InfoTooltip text="AI triage verdict and confidence distribution for incidents in this range." />
       </h3>
@@ -37,12 +37,12 @@ export function TriagePanel({ data }: { data: MetricsTriage | null }) {
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-zinc-500">Avg latency</span>
-            <span>{stats.avg_latency_seconds !== null ? formatSeconds(stats.avg_latency_seconds) : "—"}</span>
+            <span>{stats.avg_latency_seconds !== null ? formatSeconds(stats.avg_latency_seconds) : "-"}</span>
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-zinc-500">Failed runs</span>
-            <span>
-              {stats.failed_count}/{stats.total_count}
+            <span data-testid="triage-failed-runs">
+              {stats.failed_count} of {stats.total_count}
             </span>
           </div>
           {topVerdict && (

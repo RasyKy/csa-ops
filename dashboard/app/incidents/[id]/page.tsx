@@ -1,15 +1,31 @@
 import { notFound } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 
+import { AttackChainCard } from "@/components/chain/AttackChainCard";
 import { EventTimeline } from "@/components/EventTimeline";
 import { ExplainPanel } from "@/components/ExplainPanel";
-import { IncidentGraph } from "@/components/IncidentGraph";
+import { ExportReportDropdown } from "@/components/ExportReportDropdown";
 import { ResponseHistoryPanel } from "@/components/ResponseHistoryPanel";
 import { SeverityBadge } from "@/components/SeverityBadge";
-import { TriageBadge } from "@/components/TriageBadge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { TriagePanel } from "@/components/TriagePanel";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { KeyValueList } from "@/components/ui/KeyValueList";
+import { PropertyBar } from "@/components/ui/PropertyBar";
+import { Time } from "@/components/ui/Time";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { backendFetch } from "@/lib/api";
-import { deriveIncidentStatus, type IncidentStatus } from "@/lib/incidents";
+import {
+  incidentTitle,
+  humanizeScenario,
+  humanizeTactic,
+} from "@/lib/incidentDisplay";
+import { deriveIncidentStatus } from "@/lib/incidents";
+import { tzLabel } from "@/lib/time";
 import type { Graph, IncidentDetail } from "@/lib/types";
+
+export const maxDuration = 60;
 
 // Server component: fetches FastAPI directly on the server. The dashboard
 // API key never reaches the browser this way -- see lib/api.ts.
@@ -26,66 +42,212 @@ async function getGraph(id: string): Promise<Graph> {
   return res.json();
 }
 
-const STATUS_COPY: Record<IncidentStatus, { label: string; classes: string }> = {
-  open: { label: "Open", classes: "bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100" },
-  resolved: { label: "Resolved", classes: "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200" },
-  no_response: { label: "No response yet", classes: "bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400" },
-};
-
-function StatusBadge({ status }: { status: IncidentStatus }) {
-  const copy = STATUS_COPY[status];
-  return (
-    <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${copy.classes}`}>
-      {copy.label}
-    </span>
-  );
-}
-
-export default async function IncidentDetailPage({ params }: { params: { id: string } }) {
-  const incident = await getIncident(params.id);
+export default async function IncidentPage({ params }: { params: { id: string } }) {
+  const [incident, graph] = await Promise.all([getIncident(params.id), getGraph(params.id)]);
   if (!incident) notFound();
-  const graph = await getGraph(params.id);
-  const status = deriveIncidentStatus(incident.response_history);
+
+  const status = deriveIncidentStatus(incident.response_history ?? []);
+
+  // Graph nodes carry rule_title and is_trigger but no timestamp; the chain
+  // nodes carry the timestamp. Join them so the title can use the earliest hit.
+  const chainTimes = new Map(incident.chain.nodes.map((n) => [n.event_id, n.timestamp ?? null]));
+  const titleNodes = graph.nodes.map((n) => ({
+    rule_title: n.rule_title,
+    is_trigger: n.is_trigger,
+    timestamp: chainTimes.get(n.event_id) ?? null,
+  }));
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <a href="/incidents" className="text-sm text-zinc-500 hover:underline">
-        &larr; Incidents
-      </a>
+    <main className="mx-auto max-w-6xl px-6 py-6">
+      {/* Top back link & export report */}
+      <div className="flex items-center justify-between gap-4">
+        <a
+          href="/incidents"
+          className="inline-flex items-center gap-1 text-sm text-ink-subtle hover:text-ink transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          <span>Incidents</span>
+        </a>
+        <ExportReportDropdown incidentId={incident.incident_id} />
+      </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">{incident.incident_id}</h1>
-        <SeverityBadge severity={incident.severity} />
-        <StatusBadge status={status} />
-        <span className="ml-auto">
-          <TriageBadge verdict={incident.triage?.verdict ?? null} status={incident.triage?.status ?? null} prefix="AI:" />
+      {/* Title row */}
+      <div className="mt-4 flex flex-wrap items-baseline gap-3">
+        <h1 className="text-xl font-semibold text-ink">
+          {incidentTitle(incident, titleNodes)}
+        </h1>
+        <span className="text-sm font-mono text-ink-subtle">
+          {incident.incident_id}
         </span>
       </div>
-      <p className="mt-1 text-sm text-zinc-500">
-        {incident.host} · {incident.user} · {incident.matched_scenario ?? "no matched scenario"} ·{" "}
-        {incident.incident_raised_time}
-      </p>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <div className="space-y-6">
-          <section>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">Attack chain</h2>
-            <IncidentGraph graph={graph} />
-          </section>
+      {/* Property bar: Severity, Status, Host, User, Raised only */}
+      <div className="mt-4 pb-4 border-b border-line">
+        <PropertyBar
+          items={[
+            {
+              label: "Severity",
+              value: <SeverityBadge severity={incident.severity} />,
+            },
+            {
+              label: "Status",
+              value: (
+                <Tooltip content="Derived from the latest response action. Case status isn't tracked yet.">
+                  <span tabIndex={0} className="inline-flex cursor-help">
+                    <StatusBadge status={status} />
+                  </span>
+                </Tooltip>
+              ),
+            },
+            {
+              label: "Host",
+              value: incident.host,
+            },
+            {
+              label: "User",
+              value: incident.user,
+            },
+            {
+              label: "Raised",
+              value: (
+                <span>
+                  <Time iso={incident.incident_raised_time} />
+                  <span className="ml-1 text-xs text-ink-subtle">{tzLabel()}</span>
+                </span>
+              ),
+            },
+          ]}
+        />
+      </div>
 
-          <ExplainPanel incidentId={incident.incident_id} triage={incident.triage} />
+      {/* Two-column grid */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
+        {/* Left column */}
+        <div className="space-y-6 min-w-0">
+          <TriagePanel triage={incident.triage} />
 
-          <section>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">Event timeline</h2>
-            <EventTimeline nodes={incident.chain.nodes} />
-          </section>
+          <AttackChainCard graph={graph} chainNodes={incident.chain.nodes} />
+
+          <Card>
+            <CardHeader title="Event timeline" />
+            <CardBody flush>
+              <EventTimeline nodes={incident.chain.nodes} />
+            </CardBody>
+          </Card>
+
+          <ExplainPanel incidentId={incident.incident_id} triage={incident.triage} model={incident.triage?.model} />
         </div>
 
-        <div className="space-y-6">
-          <TriagePanel triage={incident.triage} />
-          <ResponseHistoryPanel history={incident.response_history} />
+        {/* Right rail: sticky with max-height and overflow scroll */}
+        <div className="space-y-6 min-w-0 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+          {/* 1. Details: Scenario, Alerts, Risk score, Tactics, Techniques only */}
+          <Card>
+            <CardHeader title="Details" />
+            <CardBody>
+              <KeyValueList
+                items={[
+                  {
+                    label: "Scenario",
+                    value: humanizeScenario(incident.matched_scenario),
+                  },
+                  {
+                    label: "Alerts",
+                    value: incident.alert_ids?.length ?? 0,
+                  },
+                  {
+                    label: "Risk score",
+                    value: incident.risk_score ?? "—",
+                  },
+                  {
+                    label: "Tactics",
+                    value:
+                      incident.tactics && incident.tactics.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {incident.tactics.map((tactic) => (
+                            <Badge key={tactic} tone="neutral">
+                              {humanizeTactic(tactic)}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-ink-subtle">None</span>
+                      ),
+                  },
+                  {
+                    label: "Techniques",
+                    value:
+                      incident.techniques && incident.techniques.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {incident.techniques.map((tech) => (
+                            <Badge key={tech} tone="neutral" className="font-mono">
+                              {tech}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-ink-subtle">None</span>
+                      ),
+                  },
+                ]}
+              />
+            </CardBody>
+          </Card>
+
+          {/* 2. Indicators */}
+          <Card>
+            <CardHeader title="Indicators" />
+            <CardBody>
+              <KeyValueList
+                items={[
+                  {
+                    label: "Process IDs",
+                    value:
+                      incident.targets?.pids && incident.targets.pids.length > 0 ? (
+                        <div className="space-y-0.5 font-mono text-xs break-all text-ink">
+                          {incident.targets.pids.map((pid, idx) => (
+                            <div key={idx}>{pid}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-ink-subtle">None</span>
+                      ),
+                  },
+                  {
+                    label: "Remote IPs",
+                    value:
+                      incident.targets?.remote_ips && incident.targets.remote_ips.length > 0 ? (
+                        <div className="space-y-0.5 font-mono text-xs break-all text-ink">
+                          {incident.targets.remote_ips.map((ip, idx) => (
+                            <div key={idx}>{ip}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-ink-subtle">None</span>
+                      ),
+                  },
+                  {
+                    label: "File paths",
+                    value:
+                      incident.targets?.file_paths && incident.targets.file_paths.length > 0 ? (
+                        <div className="space-y-0.5 font-mono text-xs break-all text-ink">
+                          {incident.targets.file_paths.map((path, idx) => (
+                            <div key={idx}>{path}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-ink-subtle">None</span>
+                      ),
+                  },
+                ]}
+              />
+            </CardBody>
+          </Card>
+
+          {/* 3. Response history */}
+          <ResponseHistoryPanel history={incident.response_history ?? []} />
         </div>
       </div>
     </main>
   );
 }
+

@@ -2,92 +2,222 @@
 
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import { useTheme } from "@/components/ThemeProvider";
 import { SEVERITY_HEX, SEVERITY_ORDER } from "@/lib/severity";
-import type { MetricsTimeseries, TimeseriesBucket } from "@/lib/types";
+import { formatHourMinute, formatShortDate } from "@/lib/time";
+import type { MetricsTimeseries } from "@/lib/types";
 import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
-import { tooltipStyle } from "./chartTheme";
 
-function roundToBucket(date: Date, interval: "hour" | "day"): Date {
-  const rounded = new Date(date);
-  if (interval === "hour") {
-    rounded.setUTCMinutes(0, 0, 0);
-  } else {
-    rounded.setUTCHours(0, 0, 0, 0);
-  }
-  return rounded;
+function getUtcMonday(d: Date): Date {
+  const res = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = res.getUTCDay();
+  const diff = (day + 6) % 7;
+  res.setUTCDate(res.getUTCDate() - diff);
+  return res;
 }
 
-// The layout must stay identical whether a range has data or not (no chart
-// disappearing/reappearing) -- so an empty range still needs a full set of
-// zero-value buckets to draw axes against, not just "no data" text in
-// place of the chart. Only ranges with a concrete lower bound (24h/7d/30d)
-// get this treatment; "all" has no fixed start to pad from, so it stays
-// sparse from the earliest real bucket, same as before.
-function zeroFillBuckets(
-  buckets: TimeseriesBucket[],
-  since: string | null,
-  asOf: string,
-  interval: "hour" | "day",
-): TimeseriesBucket[] {
-  if (!since) return buckets;
-
-  const byBucket = new Map(buckets.map((b) => [b.bucket, b.severity_counts]));
-  const filled: TimeseriesBucket[] = [];
-  const stepMs = interval === "hour" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-  let cursor = roundToBucket(new Date(since), interval);
-  const end = new Date(asOf);
-
-  while (cursor <= end) {
-    const key = cursor.toISOString();
-    filled.push({ bucket: key, severity_counts: byBucket.get(key) ?? {} });
-    cursor = new Date(cursor.getTime() + stepMs);
-  }
-  return filled;
+interface ChartBucket {
+  label: string;
+  fullLabel: string;
+  [sev: string]: string | number | undefined;
 }
 
-function formatBucketLabel(bucket: string, interval: "hour" | "day"): string {
-  const date = new Date(bucket);
-  if (Number.isNaN(date.getTime())) return bucket;
-  return interval === "hour"
-    ? date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric" })
-    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function processBuckets(
+  data: MetricsTimeseries | null,
+): { buckets: ChartBucket[]; caption: string } {
+  if (!data || (data.buckets.status !== "ok" && data.buckets.status !== "no_data")) {
+    return { buckets: [], caption: "Alerts per day (UTC days)" };
+  }
+
+  const { range, since, as_of, buckets } = data;
+  const rawBuckets = buckets.status === "ok" ? buckets.value : [];
+
+  if (range === "24h") {
+    const stepMs = 60 * 60 * 1000;
+    const byBucket = new Map(rawBuckets.map((b) => [b.bucket, b.severity_counts]));
+    const filled: ChartBucket[] = [];
+    const start = since ? new Date(since) : new Date(Date.now() - 24 * 3600 * 1000);
+    start.setUTCMinutes(0, 0, 0);
+    const end = new Date(as_of);
+    let cur = new Date(start);
+    while (cur <= end) {
+      const key = cur.toISOString();
+      const counts = byBucket.get(key) ?? {};
+      filled.push({
+        label: formatHourMinute(key),
+        fullLabel: `${formatShortDate(key)} ${formatHourMinute(key)}`,
+        ...counts,
+      });
+      cur = new Date(cur.getTime() + stepMs);
+    }
+    return { buckets: filled, caption: "Alerts per hour" };
+  }
+
+  if (range === "7d" || range === "30d") {
+    const stepMs = 24 * 60 * 60 * 1000;
+    const byBucket = new Map(rawBuckets.map((b) => [b.bucket, b.severity_counts]));
+    const filled: ChartBucket[] = [];
+    const start = since ? new Date(since) : new Date(Date.now() - (range === "7d" ? 7 : 30) * 86400 * 1000);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(as_of);
+    let cur = new Date(start);
+    while (cur <= end) {
+      const key = cur.toISOString();
+      const counts = byBucket.get(key) ?? {};
+      filled.push({
+        label: formatShortDate(key, "UTC"),
+        fullLabel: `${formatShortDate(key, "UTC")} ${cur.getUTCFullYear()}`,
+        ...counts,
+      });
+      cur = new Date(cur.getTime() + stepMs);
+    }
+    return { buckets: filled, caption: "Alerts per day (UTC days)" };
+  }
+
+  // range === "all" (since is null)
+  if (rawBuckets.length === 0) {
+    return { buckets: [], caption: "Alerts per day (UTC days)" };
+  }
+
+  const sorted = [...rawBuckets].sort((a, b) => new Date(a.bucket).getTime() - new Date(b.bucket).getTime());
+  const firstBucketDate = new Date(sorted[0].bucket);
+  const asOfDate = new Date(as_of);
+
+  const startUtcDay = new Date(Date.UTC(firstBucketDate.getUTCFullYear(), firstBucketDate.getUTCMonth(), firstBucketDate.getUTCDate()));
+  const endUtcDay = new Date(Date.UTC(asOfDate.getUTCFullYear(), asOfDate.getUTCMonth(), asOfDate.getUTCDate()));
+
+  const spanDays = Math.round((endUtcDay.getTime() - startUtcDay.getTime()) / (86400 * 1000)) + 1;
+
+  if (spanDays <= 90) {
+    const byDay = new Map<string, Record<string, number>>();
+    for (const b of rawBuckets) {
+      const d = new Date(b.bucket);
+      const dayKey = d.toISOString().slice(0, 10);
+      const existing = byDay.get(dayKey) ?? {};
+      for (const [sev, count] of Object.entries(b.severity_counts)) {
+        existing[sev] = (existing[sev] ?? 0) + count;
+      }
+      byDay.set(dayKey, existing);
+    }
+
+    const filled: ChartBucket[] = [];
+    let cur = new Date(startUtcDay);
+    while (cur <= endUtcDay) {
+      const key = cur.toISOString();
+      const dayKey = key.slice(0, 10);
+      const counts = byDay.get(dayKey) ?? {};
+      filled.push({
+        label: formatShortDate(key, "UTC"),
+        fullLabel: `${formatShortDate(key, "UTC")} ${cur.getUTCFullYear()}`,
+        ...counts,
+      });
+      cur = new Date(cur.getTime() + 86400 * 1000);
+    }
+    return { buckets: filled, caption: "Alerts per day (UTC days)" };
+  }
+
+  const startMonday = getUtcMonday(startUtcDay);
+  const endMonday = getUtcMonday(endUtcDay);
+
+  const filled: ChartBucket[] = [];
+  let weekCur = new Date(startMonday);
+  while (weekCur <= endMonday) {
+    const nextWeek = new Date(weekCur.getTime() + 7 * 86400 * 1000);
+    const weekLabel = `Week of ${formatShortDate(weekCur.toISOString(), "UTC")}`;
+    const weekCounts: Record<string, number> = {};
+    for (const b of rawBuckets) {
+      const bTime = new Date(b.bucket).getTime();
+      if (bTime >= weekCur.getTime() && bTime < nextWeek.getTime()) {
+        for (const [sev, cnt] of Object.entries(b.severity_counts)) {
+          weekCounts[sev] = (weekCounts[sev] ?? 0) + cnt;
+        }
+      }
+    }
+    filled.push({
+      label: weekLabel,
+      fullLabel: `${weekLabel} ${weekCur.getUTCFullYear()}`,
+      ...weekCounts,
+    });
+    weekCur = nextWeek;
+  }
+  return { buckets: filled, caption: "Alerts per week" };
+}
+
+interface TooltipPayloadEntry {
+  dataKey?: string | number;
+  value?: number | string;
+  [key: string]: unknown;
+}
+
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const total = payload.reduce((acc: number, entry: TooltipPayloadEntry) => acc + (Number(entry.value) || 0), 0);
+  const fullLabel = (payload[0]?.payload as { fullLabel?: string } | undefined)?.fullLabel ?? label;
+  return (
+    <div data-testid="timeseries-tooltip" className="rounded border border-line bg-surface p-2 text-xs shadow-md">
+      <p className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1.5">{fullLabel}</p>
+      <ul className="space-y-1 mb-1.5">
+        {SEVERITY_ORDER.map((sev) => {
+          const entry = payload.find((p: TooltipPayloadEntry) => p.dataKey === sev);
+          const count = entry ? entry.value : 0;
+          return (
+            <li key={sev} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 capitalize text-zinc-500">
+                <span className="h-2 w-2 rounded-full" style={{ background: SEVERITY_HEX[sev] }} />
+                {sev}
+              </span>
+              <span className="font-mono text-zinc-900 dark:text-zinc-100">{count}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="border-t border-line pt-1 flex items-center justify-between font-semibold text-zinc-900 dark:text-zinc-100">
+        <span>Total</span>
+        <span className="font-mono">{total}</span>
+      </div>
+    </div>
+  );
 }
 
 export function AlertsTimeseriesChart({ data }: { data: MetricsTimeseries | null }) {
-  const { theme } = useTheme();
-
-  const interval: "hour" | "day" = data?.range === "24h" ? "hour" : "day";
+  const { buckets: chartBuckets, caption } = processBuckets(data);
   const hasAlerts = data?.buckets.status === "ok" && data.buckets.value.some((b) => Object.keys(b.severity_counts).length > 0);
-  const chartBuckets =
-    data && (data.buckets.status === "ok" || data.buckets.status === "no_data")
-      ? zeroFillBuckets(data.buckets.value, data.since, data.as_of, interval)
-      : [];
 
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="mb-3 flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-        Alerts over time
-        <InfoTooltip text="Alert volume in this range, broken down by severity." />
-      </h3>
+    <div data-testid="overview-card" className="flex flex-col rounded-lg border border-line bg-surface p-4">
+      <div className="mb-3">
+        <h3 className="flex items-center gap-1 text-sm font-semibold text-zinc-500">
+          Alerts over time
+          <InfoTooltip text="Alert volume in this range, broken down by severity." />
+        </h3>
+        <p className="mt-0.5 text-xs text-zinc-400">{caption}</p>
+      </div>
       {!data ? (
         <MetricState status="loading" />
       ) : data.buckets.status === "pending_upstream" ? (
         <MetricState status="pending_upstream" />
       ) : (
-        <div className="relative">
+        <div className="relative min-h-[220px] flex-1" data-testid="timeseries-chart-container" data-slot-count={chartBuckets.length}>
           {!hasAlerts && (
             <p className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm text-zinc-500">
               No alerts in this range
             </p>
           )}
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartBuckets.map((b) => ({ label: formatBucketLabel(b.bucket, interval), ...b.severity_counts }))}>
+          <div className="absolute inset-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartBuckets}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-800" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={tooltipStyle(theme)} />
+              <Tooltip content={<CustomTooltip />} />
               <Legend
                 content={() => (
                   <ul className="mt-2 flex justify-center gap-4 text-xs text-zinc-500">
@@ -108,6 +238,7 @@ export function AlertsTimeseriesChart({ data }: { data: MetricsTimeseries | null
               ))}
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </div>
       )}
     </div>

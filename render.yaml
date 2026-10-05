@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: csa-ops-backend
+    runtime: python
+    plan: free
+    autoDeploy: false
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: STORE_BACKEND
+        value: fixtures
+      - key: FIXTURE_SET
+        value: realistic
+      - key: DEMO_BOOTSTRAP
+        value: "1"
+      - key: INTAKE_ENABLED
+        value: "false"
+      - key: PYTHON_VERSION
+        value: 3.14.2
+      - key: DASHBOARD_API_KEY
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: LLM_PROVIDER
+        sync: false

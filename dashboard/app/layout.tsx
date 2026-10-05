@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
+import { BackendWakeBanner } from "@/components/BackendWakeBanner";
+import { Sidebar } from "@/components/Sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,6 +20,21 @@ const THEME_INIT_SCRIPT = `
     var dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle("dark", dark);
   } catch (e) {}
+  try {
+    var isNarrow = window.matchMedia("(max-width: 767px)").matches;
+    var isCol = localStorage.getItem("sidebar-collapsed") === "true";
+    if (isCol || isNarrow) {
+      document.documentElement.dataset.sidebar = "collapsed";
+    }
+    var rawW = localStorage.getItem("csa-sidebar-width");
+    if (!isCol && !isNarrow && rawW) {
+      var w = parseInt(rawW, 10);
+      if (!isNaN(w)) {
+        w = Math.min(360, Math.max(200, w));
+        document.documentElement.style.setProperty("--sidebar-width", w + "px");
+      }
+    }
+  } catch (e) {}
 })();
 `;
 
@@ -30,24 +46,15 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="min-h-screen bg-background text-foreground">
+      <body className="h-screen overflow-hidden bg-background text-foreground">
         <ThemeProvider>
-          <nav className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 text-sm dark:border-zinc-800">
-            <div className="flex items-center">
-              <span className="mr-6 font-semibold">CSA-OPS</span>
-              <a href="/" className="mr-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
-                Overview
-              </a>
-              <a href="/incidents" className="mr-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
-                Incidents
-              </a>
-              <a href="/alerts" className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
-                Alerts
-              </a>
+          <div className="flex h-screen">
+            <Sidebar />
+            <div className="h-screen min-w-0 flex-1 overflow-y-auto">
+              <BackendWakeBanner />
+              {children}
             </div>
-            <ThemeToggle />
-          </nav>
-          {children}
+          </div>
         </ThemeProvider>
       </body>
     </html>

@@ -121,7 +121,30 @@ def build_chain(events: list[dict], alerts_by_event_id: dict[str, dict]) -> dict
     return {"nodes": nodes, "edges": edges}
 
 
-def _node(event: dict, alert: Optional[dict]) -> dict:
+def _node(event: dict, alert: Optional[dict] = None) -> dict:
+    etype = event.get("event_type")
+    detail = None
+    if etype == "network_connection":
+        ip = event.get("dest_ip")
+        port = event.get("dest_port")
+        if ip:
+            detail = f"{ip}:{port}" if port is not None else str(ip)
+    elif etype == "file_event":
+        detail = event.get("file_path")
+    elif etype == "registry_event":
+        detail = event.get("registry_key")
+    elif etype == "process_access":
+        tpn = event.get("target_process_name")
+        tpid = event.get("target_pid")
+        if tpn and tpid is not None:
+            bname = tpn.replace("\\", "/").rstrip("/").split("/")[-1] or tpn
+            detail = f"{bname} (pid {tpid})"
+    elif etype == "process_start":
+        detail = None
+
+    if detail is not None:
+        detail = str(detail)[:200]
+
     return {
         "event_id": event.get("event_id"),
         "pid": event.get("pid"),
@@ -131,6 +154,9 @@ def _node(event: dict, alert: Optional[dict]) -> dict:
         "timestamp": event.get("timestamp"),
         "technique": alert.get("technique") if alert else None,
         "rule_id": alert.get("rule_id") if alert else None,
+        "event_type": etype,
+        "host": event.get("host"),
+        "detail": detail,
     }
 
 
