@@ -10,26 +10,31 @@ whoever owns ingestion can actually see it.
 
 An audit of `RasyKy/csa-ops` found real, working ingestion code
 (`engine/normalizer/consumer.py`, `schema.py`, `winlogbeat.yml`,
-`sysmonconfig.xml`) on the **`dev`** branch, not `main`. `main` is 3 commits
-behind and does not have it. Confirm with the team which branch is the actual
-base before building anything.
+`sysmonconfig.xml`) on the **`dev`** branch, not `main`. Both `main` and `dev`
+have since merged this in (Person A's detection/correlation engine is also
+merged in now).
 
 1. **Real index name is `logs-normalized`**, not `events`. Section 4.1 below
    and any query code should target this name until/unless it's renamed.
 2. **Real normalized schema** (`engine/normalizer/schema.py`, dataclass
    `NormalizedEvent`): `timestamp, host, user, event_type, process_name, pid,
    parent_process_name, parent_pid, dest_ip, dest_port, file_path,
-   registry_key, target_process_name, target_pid`. `event_type` is one of
-   `process_start, network_connection, file_event, registry_event,
-   process_access`. No `command_line` field exists on the stored document.
-3. **Bug to flag to whoever owns ingestion, not to fix ourselves:**
-   `consumer.py`'s `normalize()` does extract `CommandLine` into a local
-   dict, but `to_normalized_event()` never maps it onto `NormalizedEvent` —
-   it's silently dropped before the ES write. Command-line text is the
-   single most common signal Sigma rules and AI triage rely on. This blocks
-   accurately populating `chain.nodes[].command_line` below until it's fixed
-   upstream. Treat that field as optional/nullable in every consumer
-   (dashboard, AI prompt) until it is.
+   registry_key, target_process_name, target_pid, command_line`. `event_type`
+   is one of `process_start, network_connection, file_event, registry_event,
+   process_access`.
+3. **`command_line` — fixed.** `consumer.py`'s `normalize()` already
+   extracted `CommandLine` into a local dict; `to_normalized_event()` now
+   maps it onto `NormalizedEvent.command_line` too, so it reaches
+   `logs-normalized`. Verified end-to-end against a real broker: published a
+   test `Process Create` event to Kafka, confirmed the consumer's `poll()`
+   loop received it and `to_normalized_event()` produced a `NormalizedEvent`
+   with `command_line` intact. Detection (`engine/detection/engine.py`) and
+   correlation (`engine/correlation/correlator.py`) both pass it through to
+   `alerts[].command_line` and `chain.nodes[].command_line` unchanged, so the
+   "aspirational" caveat on that field below no longer applies going forward
+   — treat it as present for any event normalized by this consumer from now
+   on, still nullable only for historical/replayed data captured before this
+   fix.
 
 Also found, not blocking B but worth relaying to whoever owns infra:
 `docker-compose.yml`'s `KAFKA_ADVERTISED_LISTENERS` is pinned to
@@ -94,8 +99,8 @@ not a code change.
   "alert_ids": ["uuid", "uuid"],
   "chain": {
     "nodes": [
-      {"event_id": "uuid", "pid": 1280, "ppid": 900, "image": "...", "command_line": "...", "timestamp": "...", "technique": "T1059.001", "rule_id": "..."},
-      {"event_id": "uuid", "pid": 4412, "ppid": 1280, "image": "...", "command_line": "...", "timestamp": "...", "technique": null, "rule_id": null}
+      {"event_id": "uuid", "pid": 1280, "ppid": 900, "image": "...", "command_line": "...", "timestamp": "...", "technique": "T1059.001", "rule_id": "...", "event_type": "process_start", "host": "WS01", "detail": null},
+      {"event_id": "uuid", "pid": 4412, "ppid": 1280, "image": "...", "command_line": null, "timestamp": "...", "technique": null, "rule_id": null, "event_type": "network_connection", "host": "WS01", "detail": "203.0.113.7:443"}
     ],
     "edges": [
       {"from": "event_id", "to": "event_id", "relation": "parent"}
@@ -110,14 +115,28 @@ not a code change.
 ```
 
 `severity` enum: `low | medium | high | critical`. `matched_scenario` may be
-`null`; the policy must handle that. `chain.nodes[].command_line` is
-aspirational: the current `logs-normalized` documents do not carry it (see
-the audit findings above). Treat it as optional/nullable in every consumer
-(dashboard, AI prompt) until ingestion fixes it, rather than assuming it's
-always present. `targets` is what the response engine acts on; if A cannot
-produce it, B derives it from `chain.nodes` (pids from nodes, ips from
-network events, paths from file events). `relation` enum: `parent | network
-| file | registry`.
+`null`; the policy must handle that. `chain.nodes[].command_line` is fixed
+upstream (see the audit findings above) -- still treat it as nullable for
+any event normalized before the fix landed, but it is populated end-to-end
+for new events.
+
+`chain.nodes[]` also carries optional metadata fields (`event_type`, `host`, `detail`):
+- `event_type`: optional enum matching the normalized event type:
+  `process_start | process_access | file_event | registry_event | network_connection`.
+- `host`: optional string, identifying the host where the event occurred (e.g. `"WS01"`).
+- `detail`: optional string (max 200 chars) holding key resource or target context:
+  - `process_start`: `null` (e.g. `{"event_type": "process_start", "host": "WS01", "detail": null}`)
+  - `process_access`: `<target_process_basename> (pid <target_pid>)` (e.g. `{"event_type": "process_access", "host": "WS01", "detail": "lsass.exe (pid 700)"}`)
+  - `file_event`: target file path (e.g. `{"event_type": "file_event", "host": "WS02", "detail": "C:\\Users\\bob\\AppData\\Local\\Temp\\payload.exe"}`)
+  - `registry_event`: target registry key (e.g. `{"event_type": "registry_event", "host": "WS02", "detail": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Updater"}`)
+  - `network_connection`: destination address as `dest_ip:dest_port` or `dest_ip` (e.g. `{"event_type": "network_connection", "host": "WS02", "detail": "203.0.113.9:443"}`)
+
+`targets` is confirmed populated by the correlation engine
+(`engine/correlation/correlator.py`'s `_targets()`: pids of alerting
+processes, remote IPs from network events, file paths from file events) --
+B does not need its own derivation fallback for live data, though keeping
+one as a defensive fallback for a malformed/future incident doc is still
+reasonable. `relation` enum: `parent | network | file | registry`.
 
 ### 4.4 Incident handoff (A to B)
 
@@ -177,6 +196,72 @@ notable_details[], next_steps[], caveats[], generated_time}`.
 `response_executed_time` closes MTTR (NFR-8). Set it only when the agent
 reports success. In dry-run it is still set (to the simulated execution
 moment) and `mode` distinguishes.
+
+## Cases
+
+Analyst case management. B owns the data; it lives in `cases.json` beside the
+other runtime files (`data/cases.json`, or `data/<NAME>/cases.json` for a named
+`FIXTURE_SET`, honoring `DATA_ROOT`), in every `STORE_BACKEND` mode. It never
+feeds detection, correlation, scoring, response actions or AI output. See
+`docs/cases.md` for the audit trail, the virtual default and the non-goals.
+
+### Case document
+
+```json
+{
+  "incident_id": "inc-1006",
+  "status": "open | investigating | resolved",
+  "assignee": "Analyst 1",
+  "verdict": "true_positive | false_positive | benign_activity | undetermined | null",
+  "resolution_note": "max 1000 chars, or null",
+  "resolved_time": "2026-10-04T10:05:00.000Z",
+  "updated_time": "2026-10-04T10:05:00.000Z",
+  "events": [
+    {"id": "evt-1", "time": "...", "actor": "analyst", "type": "created", "data": {}},
+    {"id": "evt-2", "time": "...", "actor": "Priya", "type": "assignee_changed", "data": {"from": null, "to": "Analyst 1"}}
+  ],
+  "version": 2
+}
+```
+
+`events[].type` is one of `created`, `status_changed` (`{from, to}`),
+`assignee_changed` (`{from, to}`), `note_added` (`{text}`), `resolved`
+(`{verdict, note}`), `reopened` (`{}`). Event ids are `evt-<n>`, sequential per
+case. `version` always equals the number of events. A case that has no stored
+data is virtual: status `open`, no assignee, no events, `version` 0, and
+nothing is written until the first mutation.
+
+### Endpoints (dashboard key)
+
+| Method and path | Body | Result |
+| --- | --- | --- |
+| `GET /cases?status=&assignee=` | | summaries (`incident_id, status, assignee, verdict, updated_time, resolved_time, version`) of incidents that have a stored case, newest update first. `assignee=Unassigned` matches no assignee. |
+| `GET /cases/assignees` | | the configured list (`CASE_ASSIGNEES`) |
+| `GET /incidents/{id}/case` | | the full Case (virtual default if none) |
+| `PATCH /incidents/{id}/case` | `{status?, assignee?, expected_version?}` | updated Case. `status` may be `open` or `investigating`. `assignee` must be in the list; `"Unassigned"` or `null` clears it. A change to the value already held is a no-op: no event, no version bump. |
+| `POST /incidents/{id}/case/notes` | `{text, expected_version?}` | updated Case. `text` is trimmed, 1 to 2000 characters, stored verbatim. |
+| `POST /incidents/{id}/case/resolve` | `{verdict, note?, expected_version?}` | updated Case. `note` is trimmed, max 1000. |
+| `POST /incidents/{id}/case/reopen` | `{expected_version?}` (body optional) | updated Case with status `investigating`; verdict, resolution note and resolved time cleared, all events kept. |
+
+The caller is named by the optional `X-Actor` header (trimmed, 1 to 64
+characters, default `analyst`). There are no user accounts; it is a label.
+
+### Error codes
+
+| Code | When |
+| --- | --- |
+| 401 / 403 | missing / wrong `X-API-Key` |
+| 404 | unknown incident id (checked against the active fixture set or the incidents index) |
+| 409 | `PATCH` with `status: "resolved"`; `PATCH` of status on a resolved case; resolving a resolved case; reopening a case that is not resolved; `expected_version` differs from the current version. Body: `{"detail": "...", "case": {<current Case>}}`. |
+| 422 | invalid body, unknown assignee, invalid verdict, empty or over-long note, invalid `X-Actor` |
+
+### Example
+
+```
+PATCH /incidents/inc-1006/case        {"assignee": "Analyst 1", "expected_version": 0}
+POST  /incidents/inc-1006/case/notes  {"text": "Word spawned PowerShell; checking the dropper."}
+POST  /incidents/inc-1006/case/resolve {"verdict": "true_positive", "note": "Confirmed phishing document."}
+```
 
 ## Metrics
 
@@ -240,43 +325,69 @@ A's `alerts`/`incidents`.
 **ATT&CK coverage** comes from two places, joined at request time: which
 techniques actually **fired** (from alert data, live) and which are
 **covered** by a rule (parsed read-only from `rules/*.yml`'s Sigma `tags`,
-e.g. `attack.t1003.001`). `rules/` has no `.yml` files yet on this branch,
-so coverage currently reports `pending_upstream` -- not "0 techniques
-covered" -- until Person A adds real rules. There is no third "not
-covered" state: that would need MITRE's full ~600-technique catalog, which
-isn't bundled in this project.
+e.g. `attack.t1003.001`). `rules/` now has Person A's 8 real Sigma rules, so
+coverage reports real data, not `pending_upstream`. When building cells for
+`GET /metrics/mitre`, covered (rule-only) techniques are merged and skipped
+when a fired technique equals them, or when one of the two is the bare parent
+of the other (the parent has no "." and the other is parent + "." + digits).
+Two different sub-techniques of the same parent are not merged. Fired cells
+remain unchanged (`status: "fired"`, their alert count and tactic). Remaining
+covered cells (`status: "covered_not_fired"`, `count: 0`) now carry their
+tactic derived from the rule's own ATT&CK tags (`attack.<tactic>`), or `None`
+if the rule has no tactic tag. Note the granularity mismatch this originally
+surfaced: rule tags use sub-technique IDs (e.g. `attack.t1003.001` ->
+`T1003.001`), and those sub-technique IDs propagate verbatim into
+`alerts[].technique` and `incidents[].techniques[]` -- the parent/sub-technique
+merge rule now reconciles them in `/metrics/mitre`. The dashboard's
+`MitreHeatmap` technique-label lookup also falls back to the parent
+technique's label when the sub-technique isn't in its own label dictionary
+(`T1003.001` shows "T1003.001 OS Credential Dumping"), so a label is never
+just a bare unlabeled ID. There is no third "not covered" state: that would
+need MITRE's full ~600-technique catalog, which isn't bundled in this
+project.
 
 ## Open questions for Person A
 
-- [ ] Scenario naming: are `credential_dump_chain`, `exfiltration_chain`,
-      `malware_drop_chain`, `lateral_movement_chain` the actual
-      `matched_scenario` values your correlation engine will emit, or
-      placeholders? B's `policy.yaml` (`by_scenario`) keys off these exact
-      strings.
-- [ ] Will `targets` (4.3) actually be populated by the correlation engine,
-      or should B always derive it from `chain.nodes` itself?
+- [x] Scenario naming: confirmed matching. `engine/correlation/risk.py`'s
+      `_SCENARIO_RULES` emits exactly `credential_dump_chain`,
+      `lateral_movement_chain`, `exfiltration_chain`, `malware_drop_chain` --
+      the same four strings `policy.yaml`'s `by_scenario` keys off, verified
+      by reading both files side by side.
+- [x] `targets` (4.3): confirmed populated by the correlation engine.
+      `engine/correlation/correlator.py`'s `_targets()` derives `pids`,
+      `remote_ips`, `file_paths` from the cluster for every incident; B does
+      not need to derive it itself for live data.
 - [ ] Incident handoff (4.4): will you publish to a Kafka topic
       (`incidents.raised`), or should B only ever poll the `incidents`
       index? If Kafka, confirm the topic name and that the payload is
-      identical to the polled document.
+      identical to the polled document. Still open --
+      `backend/app/intake/kafka_source.py` is still an empty stub.
 - [ ] `attack_action_time` (needed to close MTTD, see the Metrics section
       above): where does this actually get logged? Person C's attack
       script, joined onto the incident by your correlation engine? A
-      separate index? There is no contract field or index for it right
-      now -- MTTD support in the metrics page is built but reports
-      `pending_upstream` until this is confirmed.
+      separate index? **Still needed:** there is no contract field or index
+      for this anywhere in the merged code (checked `engine/correlation/` and
+      `engine/detection/` directly) -- MTTD support in the metrics page is
+      built but reports `pending_upstream` until this is confirmed and
+      populated on real data.
 - [ ] `false_positive` label on the alert document (4.2, new field for the
       Metrics section above): will detection tuning ever set this, and if
       so where -- written by A directly, or a separate analyst-feedback
-      loop? B's false-positive-rate calc treats it as optional per-alert
-      and excludes unlabeled alerts from the rate, so this can be answered
-      whenever it's convenient, not a blocker.
+      loop? **Still needed:** `engine/detection/engine.py`'s `_alert()` does
+      not set this key at all (confirmed by reading the function) -- every
+      alert the real engine produces omits the field entirely, so B's
+      false-positive-rate calc currently excludes 100% of real alerts from
+      that denominator, not just the unlabeled minority it was designed for.
+      Not a blocker (the calc already treats it as optional), but worth
+      flagging since the gap is total, not partial.
 
 ## Open questions for whoever owns ingestion
 
-- [ ] `consumer.py` extracts `CommandLine` in `normalize()` but drops it in
-      `to_normalized_event()` — it never reaches `logs-normalized`. Can this
-      be fixed upstream? Detection rules and AI triage both need it.
+- [x] `consumer.py` extracts `CommandLine` in `normalize()` but drops it in
+      `to_normalized_event()` — fixed. `to_normalized_event()` now maps it
+      onto `NormalizedEvent.command_line`; verified against a real Kafka
+      broker (published a test event, confirmed the consumer decoded
+      `command_line` intact end-to-end).
 - [ ] `docker-compose.yml`'s `KAFKA_ADVERTISED_LISTENERS` is pinned to
       `localhost:9092`. Once Winlogbeat runs on a separate Machine 1, produce
       calls will fail after the initial connection. Needs to advertise the
@@ -284,3 +395,9 @@ isn't bundled in this project.
 - [ ] There is no Elasticsearch index template for `logs-normalized`. Fields
       like `dest_ip` are whatever dynamic mapping guesses on first write.
       Should one be added before Phase 6 integration?
+- [ ] New, not yet relayed: `kafka-python==2.0.2` does not import on Python
+      3.12+ (its vendored `six` depends on the `imp` module, removed in
+      3.12). This repo's `engine/normalizer/consumer.py` has been switched to
+      `confluent-kafka==2.15.1`, which ships prebuilt wheels and has no such
+      issue -- update any other environment/doc that still assumes
+      `kafka-python`.

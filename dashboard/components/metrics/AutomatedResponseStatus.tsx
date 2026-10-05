@@ -41,7 +41,7 @@ function resolveState(response: MetricsResponse): ResponseState {
 export function AutomatedResponseStatus({ response }: { response: MetricsResponse | null }) {
   if (!response) {
     return (
-      <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+      <div data-testid="overview-card" className="rounded-lg border border-line bg-surface p-4">
         <MetricState status="loading" />
       </div>
     );
@@ -50,8 +50,8 @@ export function AutomatedResponseStatus({ response }: { response: MetricsRespons
   const copy = STATE_COPY[resolveState(response)];
 
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
-      <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+    <div data-testid="overview-card" className="rounded-lg border border-line bg-surface p-4">
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-zinc-500">
         Automated response
         <InfoTooltip text="Kill switch: an emergency stop -- when on, no automatic action is issued and the agent refuses any command that arrives. Practice mode (dry-run): the default safe mode, where a decided action is logged but never executed on an endpoint." />
       </div>

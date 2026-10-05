@@ -1,0 +1,273 @@
+[
+  {
+    "action_id": "0abbf3a3-ba00-4a6d-8f39-a3791f77ddb1",
+    "incident_id": "inc-1008",
+    "host": "WS13",
+    "action": "isolate_host",
+    "target": {
+      "pids": [
+        3932,
+        3952
+      ],
+      "remote_ips": [
+        "10.20.0.15",
+        "10.20.0.16"
+      ],
+      "file_paths": [],
+      "pid_images": {
+        "3732": "C:\\Windows\\explorer.exe",
+        "3824": "C:\\Windows\\System32\\cmd.exe",
+        "3932": "C:\\Windows\\System32\\wbem\\wmic.exe",
+        "3952": "C:\\Tools\\PSTools\\psexec.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "high",
+      "matched_scenario": "lateral_movement_chain",
+      "policy_rule": "by_scenario:lateral_movement_chain"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-09-29T11:52:00.414Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  },
+  {
+    "action_id": "a3b10721-707d-46eb-aab9-cc68fafb2c00",
+    "incident_id": "inc-1007",
+    "host": "WS12",
+    "action": "kill_process",
+    "target": {
+      "pids": [
+        3364
+      ],
+      "remote_ips": [
+        "10.20.0.5"
+      ],
+      "file_paths": [
+        "C:\\ProgramData\\Corp\\inventory.csv"
+      ],
+      "pid_images": {
+        "3340": "C:\\Windows\\CCM\\CcmExec.exe",
+        "3364": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "high",
+      "matched_scenario": null,
+      "policy_rule": "by_severity:high"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-10-01T11:51:02.714Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  },
+  {
+    "action_id": "c0d76187-c2a2-44ae-bc4c-1774d39c9c69",
+    "incident_id": "inc-1006",
+    "host": "WS11",
+    "action": "kill_process",
+    "target": {
+      "pids": [
+        3468,
+        3812,
+        4076,
+        4116,
+        4172
+      ],
+      "remote_ips": [
+        "203.0.113.50"
+      ],
+      "file_paths": [
+        "C:\\Users\\lena\\AppData\\Local\\Temp\\svc_update.exe"
+      ],
+      "pid_images": {
+        "3288": "C:\\Windows\\explorer.exe",
+        "3400": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+        "3468": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "3528": "C:\\Windows\\System32\\whoami.exe",
+        "3684": "C:\\Windows\\System32\\net.exe",
+        "3812": "C:\\Windows\\System32\\reg.exe",
+        "3932": "C:\\Windows\\System32\\cmd.exe",
+        "4076": "C:\\Windows\\System32\\reg.exe",
+        "4116": "C:\\Windows\\System32\\rundll32.exe",
+        "4172": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "high",
+      "matched_scenario": "credential_dump_chain",
+      "policy_rule": "by_scenario:credential_dump_chain"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-10-03T09:59:25.914Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  },
+  {
+    "action_id": "34e6710a-820b-42b4-9c46-8b4e32bdd1b4",
+    "incident_id": "inc-1005",
+    "host": "WS10",
+    "action": "kill_process",
+    "target": {
+      "pids": [
+        4352,
+        4500
+      ],
+      "remote_ips": [
+        "198.51.100.23"
+      ],
+      "file_paths": [
+        "C:\\Users\\karl\\AppData\\Local\\Temp\\lsass.dmp"
+      ],
+      "pid_images": {
+        "4128": "C:\\Windows\\explorer.exe",
+        "4216": "C:\\Windows\\System32\\cmd.exe",
+        "4352": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "4392": "C:\\Windows\\System32\\whoami.exe",
+        "4500": "C:\\Windows\\System32\\rundll32.exe",
+        "4520": "C:\\Windows\\System32\\cmd.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "high",
+      "matched_scenario": "credential_dump_chain",
+      "policy_rule": "by_scenario:credential_dump_chain"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-10-03T21:53:03.014Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  },
+  {
+    "action_id": "6e73c47d-73ae-49d1-894e-17bfeb32183c",
+    "incident_id": "inc-1004",
+    "host": "WS09",
+    "action": "block_address",
+    "target": {
+      "pids": [
+        4032,
+        4088
+      ],
+      "remote_ips": [
+        "203.0.113.50"
+      ],
+      "file_paths": [
+        "C:\\Users\\judy\\AppData\\Local\\Temp\\svc_update.exe"
+      ],
+      "pid_images": {
+        "3788": "C:\\Windows\\explorer.exe",
+        "3828": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+        "3972": "C:\\Windows\\System32\\cmd.exe",
+        "4032": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "4088": "C:\\Users\\judy\\AppData\\Local\\Temp\\svc_update.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "high",
+      "matched_scenario": "exfiltration_chain",
+      "policy_rule": "by_scenario:exfiltration_chain"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-10-04T02:52:15.914Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  },
+  {
+    "action_id": "8495b39a-dad7-4864-807d-ea86e0691803",
+    "incident_id": "inc-1003",
+    "host": "WS08",
+    "action": "log",
+    "target": {
+      "pids": [
+        4216
+      ],
+      "remote_ips": [],
+      "file_paths": [],
+      "pid_images": {
+        "3852": "C:\\Windows\\explorer.exe",
+        "3944": "C:\\Windows\\System32\\cmd.exe",
+        "4028": "C:\\Windows\\System32\\whoami.exe",
+        "4168": "C:\\Windows\\System32\\ipconfig.exe",
+        "4216": "C:\\Windows\\System32\\reg.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "low",
+      "matched_scenario": null,
+      "policy_rule": "by_severity:low"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-10-04T06:51:51.314Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  },
+  {
+    "action_id": "9eac751b-5c5b-4433-bb04-f4ac6b7fa106",
+    "incident_id": "inc-1002",
+    "host": "WS07",
+    "action": "kill_process",
+    "target": {
+      "pids": [
+        3944
+      ],
+      "remote_ips": [],
+      "file_paths": [],
+      "pid_images": {
+        "3768": "C:\\Windows\\explorer.exe",
+        "3920": "C:\\Windows\\System32\\cmd.exe",
+        "3944": "C:\\Windows\\System32\\reg.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "high",
+      "matched_scenario": null,
+      "policy_rule": "by_severity:high"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-10-04T09:41:24.114Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  },
+  {
+    "action_id": "49721cc2-1cbc-4608-b5da-8ddf61be2e68",
+    "incident_id": "inc-1001",
+    "host": "WS06",
+    "action": "kill_process",
+    "target": {
+      "pids": [
+        3584
+      ],
+      "remote_ips": [],
+      "file_paths": [],
+      "pid_images": {
+        "3540": "C:\\Windows\\explorer.exe",
+        "3584": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      }
+    },
+    "decided_by": {
+      "severity": "high",
+      "matched_scenario": null,
+      "policy_rule": "by_severity:high"
+    },
+    "mode": "dry_run",
+    "status": "issued",
+    "command_issued_time": "2026-10-04T11:16:09.714Z",
+    "agent_received_time": null,
+    "response_executed_time": null,
+    "result": null
+  }
+]

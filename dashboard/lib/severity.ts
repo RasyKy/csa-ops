@@ -14,8 +14,8 @@ export const SEVERITY_HEX: Record<Severity, string> = {
 export const SEVERITY_ORDER: Severity[] = ["low", "medium", "high", "critical"];
 
 export const SEVERITY_BADGE_CLASSES: Record<Severity, string> = {
-  low: "bg-blue-200 text-blue-900 dark:bg-blue-900 dark:text-blue-100",
-  medium: "bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100",
-  high: "bg-orange-300 text-orange-950 dark:bg-orange-800 dark:text-orange-50",
-  critical: "bg-red-300 text-red-950 dark:bg-red-800 dark:text-red-50",
+  low: "border-blue-500 bg-blue-50 text-blue-800 dark:border-blue-400 dark:bg-blue-950/50 dark:text-blue-200",
+  medium: "border-amber-500 bg-amber-50 text-amber-800 dark:border-amber-400 dark:bg-amber-950/50 dark:text-amber-200",
+  high: "border-orange-500 bg-orange-50 text-orange-950 dark:border-orange-400 dark:bg-orange-950/50 dark:text-orange-200",
+  critical: "border-red-500 bg-red-50 text-red-950 dark:border-red-400 dark:bg-red-950/50 dark:text-red-200",
 };

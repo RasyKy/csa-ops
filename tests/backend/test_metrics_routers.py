@@ -193,6 +193,67 @@ def test_mitre_techniques_come_from_fired_alerts(client):
     assert "T1059.001" in techniques
 
 
+def test_mitre_merges_parent_and_subtechniques_with_real_rules(client):
+    r = client.get("/metrics/mitre?range=all", headers=DASH)
+    assert r.status_code == 200
+    cells = r.json()["techniques"]["value"]
+
+    # exactly one cell for T1003 (status fired, count 1) and none for T1003.001
+    t1003_cells = [c for c in cells if c["technique"] == "T1003"]
+    assert len(t1003_cells) == 1
+    assert t1003_cells[0]["status"] == "fired"
+    assert t1003_cells[0]["count"] == 1
+    assert not any(c["technique"] == "T1003.001" for c in cells)
+
+    # the same for T1021 and T1021.002
+    t1021_cells = [c for c in cells if c["technique"] == "T1021"]
+    assert len(t1021_cells) == 1
+    assert t1021_cells[0]["status"] == "fired"
+    assert t1021_cells[0]["count"] == 1
+    assert not any(c["technique"] == "T1021.002" for c in cells)
+
+    # T1048 has tactic "exfiltration" and T1547.001 has tactic "persistence"
+    by_tech = {c["technique"]: c for c in cells}
+    assert by_tech["T1048"]["tactic"] == "exfiltration"
+    assert by_tech["T1048"]["status"] == "covered_not_fired"
+    assert by_tech["T1048"]["count"] == 0
+
+    assert by_tech["T1547.001"]["tactic"] == "persistence"
+    assert by_tech["T1547.001"]["status"] == "covered_not_fired"
+    assert by_tech["T1547.001"]["count"] == 0
+
+    # T1059.001 has exactly one cell
+    t1059_cells = [c for c in cells if c["technique"] == "T1059.001"]
+    assert len(t1059_cells) == 1
+    assert t1059_cells[0]["status"] == "fired"
+
+
+def test_mitre_sibling_subtechniques_not_merged(client, tmp_path, monkeypatch):
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    (rules_dir / "t1003_001.yml").write_text(
+        "id: T1003.001_lsass\n"
+        "tags:\n"
+        "  - attack.credential_access\n"
+        "  - attack.t1003.001\n"
+    )
+    monkeypatch.setattr(metrics_router, "_RULES_DIR", rules_dir)
+    monkeypatch.setattr(
+        client.app.state.store,
+        "alerts_by_technique_tactic",
+        lambda since=None: [{"technique": "T1003.002", "tactic": "credential_access", "count": 1}],
+    )
+    r = client.get("/metrics/mitre?range=all", headers=DASH)
+    assert r.status_code == 200
+    cells = r.json()["techniques"]["value"]
+    techniques = {c["technique"] for c in cells}
+    assert "T1003.001" in techniques
+    assert "T1003.002" in techniques
+    assert len([c for c in cells if c["technique"] == "T1003.001"]) == 1
+    assert len([c for c in cells if c["technique"] == "T1003.002"]) == 1
+
+
+
 # --- /metrics/response ---
 
 def test_response_metrics_reflects_kill_switch_and_mode(client):

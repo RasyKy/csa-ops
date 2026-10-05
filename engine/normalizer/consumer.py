@@ -1,7 +1,7 @@
 import json
 import time
 from dataclasses import asdict
-from kafka import KafkaConsumer
+from confluent_kafka import Consumer
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 
@@ -118,15 +118,13 @@ def flush(es, batch):
 
 
 def main():
-    consumer = KafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=[KAFKA_BROKER],
-        auto_offset_reset="earliest",
-        enable_auto_commit=True,
-        group_id="normalizer",
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        consumer_timeout_ms=1000,  # lets the loop below check the flush timer even when idle
-    )
+    consumer = Consumer({
+        "bootstrap.servers": KAFKA_BROKER,
+        "group.id": "normalizer",
+        "auto.offset.reset": "earliest",
+        "enable.auto.commit": True,
+    })
+    consumer.subscribe([KAFKA_TOPIC])
     es = Elasticsearch(ES_HOST)
 
     batch = []
@@ -136,20 +134,27 @@ def main():
 
     try:
         while True:
-            for message in consumer:
-                batch.append(to_normalized_event(normalize(message.value)))
-                if len(batch) >= BATCH_SIZE:
-                    flush(es, batch)
-                    last_flush = time.time()
+            # 1s poll timeout lets the loop check the flush timer even when idle,
+            # the same role consumer_timeout_ms played with kafka-python.
+            msg = consumer.poll(1.0)
+            if msg is not None:
+                if msg.error():
+                    print(f"consumer error: {msg.error()}")
+                else:
+                    value = json.loads(msg.value().decode("utf-8"))
+                    batch.append(to_normalized_event(normalize(value)))
+                    if len(batch) >= BATCH_SIZE:
+                        flush(es, batch)
+                        last_flush = time.time()
 
-            # consumer_timeout_ms causes the loop above to end when idle for a second,
-            # this is where we flush whatever's left even if the batch never filled up
             if time.time() - last_flush >= FLUSH_INTERVAL_SECONDS:
                 flush(es, batch)
                 last_flush = time.time()
     except KeyboardInterrupt:
         flush(es, batch)  # don't lose a partial batch on Ctrl+C
         print("stopped")
+    finally:
+        consumer.close()
 
 
 if __name__ == "__main__":

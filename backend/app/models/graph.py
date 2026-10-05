@@ -15,6 +15,9 @@ class GraphNode(BaseModel):
     rule_id: Optional[str] = None
     rule_title: Optional[str] = None
     is_trigger: bool
+    event_type: Optional[str] = None
+    host: Optional[str] = None
+    detail: Optional[str] = None
 
 
 class Graph(BaseModel):

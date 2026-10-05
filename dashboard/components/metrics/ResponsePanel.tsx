@@ -7,9 +7,13 @@ import { MetricState } from "./MetricState";
 // Needs Attention, so it isn't repeated here. Full per-action breakdowns
 // are one click away on /incidents; here it's headline numbers only.
 export function ResponsePanel({ data }: { data: MetricsResponse | null }) {
+  const liveTotal = data?.live.value.total ?? 0;
+  const liveSucceeded = data?.live.value.succeeded ?? 0;
+  const dryRunTotal = data?.dry_run.value.total ?? 0;
+
   return (
-    <div className="rounded border border-zinc-200 p-3 dark:border-zinc-800">
-      <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+    <div data-testid="overview-card" className="rounded-lg border border-line bg-surface p-3">
+      <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold text-zinc-500">
         Response
         <InfoTooltip text="Automated and manual response actions taken on incidents in this range." />
       </h3>
@@ -19,18 +23,18 @@ export function ResponsePanel({ data }: { data: MetricsResponse | null }) {
       ) : (
         <div className="space-y-1.5 text-sm">
           <div className="flex justify-between gap-2">
-            <span className="text-zinc-500">Live success</span>
-            <span>
-              {data.live.value.succeeded}/{data.live.value.total}
-              {data.live.value.rate !== null && ` (${(data.live.value.rate * 100).toFixed(0)}%)`}
+            <span className="text-zinc-500">Live actions</span>
+            <span data-testid="response-live-status">
+              {liveTotal === 0 ? "None yet" : `${liveSucceeded} of ${liveTotal} succeeded`}
             </span>
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-zinc-500">Practice mode</span>
-            <span>{data.dry_run.value.total}</span>
+            <span data-testid="response-practice-status">{dryRunTotal} logged, not executed</span>
           </div>
         </div>
       )}
     </div>
   );
 }
+

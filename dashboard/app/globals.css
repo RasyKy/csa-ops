@@ -5,9 +5,82 @@
 :root {
   --background: #fafafa;
   --foreground: #18181b;
+  --sidebar-width: 240px;
+  --surface: #ffffff;
+  --surface-subtle: #fafafa;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  --ink: #18181b;
+  --ink-muted: #52525b;
+  --ink-subtle: #71717a;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
 }
 
 .dark {
   --background: #09090b;
   --foreground: #f4f4f5;
+  --surface: #131316;
+  --surface-subtle: #18181b;
+  --line: #27272a;
+  --line-strong: #3f3f46;
+  --ink: #f4f4f5;
+  --ink-muted: #a1a1aa;
+  --ink-subtle: #8b8b95;
+  --accent: #818cf8;
+  --accent-soft: #1e1b4b;
 }
+
+body {
+  @apply font-sans;
+}
+
+details,
+summary,
+button,
+input {
+  font: inherit;
+}
+
+[role="separator"][aria-orientation="vertical"] {
+  touch-action: none;
+}
+
+html[data-sidebar="collapsed"] aside[data-sidebar-root] {
+  width: 4rem !important;
+}
+
+html[data-sidebar="collapsed"] aside[data-sidebar-root] [data-sidebar-expanded-only] {
+  display: none !important;
+}
+
+html[data-sidebar="collapsed"] aside[data-sidebar-root] .sidebar-footer {
+  flex-direction: column !important;
+  align-items: center !important;
+}
+
+html[data-sidebar="collapsed"] aside[data-sidebar-root] .sidebar-footer button {
+  height: 2.25rem !important;
+  width: 2.25rem !important;
+}
+
+html[data-sidebar="collapsed"] aside[data-sidebar-root] .sidebar-footer .chevron-icon {
+  transform: rotate(180deg) !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.react-flow .react-flow__attribution {
+  background: transparent !important;
+  color: var(--ink-subtle) !important;
+}
+
+.react-flow .react-flow__attribution a {
+  color: inherit !important;
+  text-decoration: none;
+}
+
+.react-flow .react-flow__attribution a:hover {
+  text-decoration: underline;
+}
+
