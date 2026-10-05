@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { BackendWakeBanner } from "@/components/BackendWakeBanner";
 import { Sidebar } from "@/components/Sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
@@ -49,7 +50,10 @@ export default function RootLayout({
         <ThemeProvider>
           <div className="flex h-screen">
             <Sidebar />
-            <div className="h-screen min-w-0 flex-1 overflow-y-auto">{children}</div>
+            <div className="h-screen min-w-0 flex-1 overflow-y-auto">
+              <BackendWakeBanner />
+              {children}
+            </div>
           </div>
         </ThemeProvider>
       </body>

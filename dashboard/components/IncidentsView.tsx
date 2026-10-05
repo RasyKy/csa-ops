@@ -8,10 +8,12 @@ import { SeverityBadge } from "@/components/SeverityBadge";
 import { TriageBadge } from "@/components/TriageBadge";
 import { humanizeScenario } from "@/lib/incidentDisplay";
 import { deriveIncidentStatus, isOpenIncident } from "@/lib/incidents";
+import { nextDelay } from "@/lib/pollBackoff";
 import { describeResponseAction } from "@/lib/responseWording";
 import type { IncidentListItem, Severity } from "@/lib/types";
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_BASE_MS = 3000;
+const POLL_MAX_MS = 30000;
 
 type SortColumn =
   | "severity"
@@ -73,24 +75,78 @@ export function IncidentsView() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }, [severity, search, technique, status, sortColumn, sortDirection, pathname, router]);
 
-  const load = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (severity) params.set("severity", severity);
+  // Returns true on success, false on a network error or any non-2xx answer
+  // (including 503 backend_unavailable), so the poll below can back off.
+  const load = useCallback(
+    async (isCancelled: () => boolean, signal: AbortSignal): Promise<boolean> => {
+      const params = new URLSearchParams();
+      if (severity) params.set("severity", severity);
 
-    try {
-      const res = await fetch(`/api/incidents?${params.toString()}`);
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      setIncidents(await res.json());
-      setError(null);
-    } catch {
-      setError("Could not reach the backend.");
-    }
-  }, [severity]);
+      try {
+        const res = await fetch(`/api/incidents?${params.toString()}`, { signal });
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const body = await res.json();
+        if (isCancelled()) return false;
+        setIncidents(body);
+        setError(null);
+        return true;
+      } catch {
+        if (isCancelled()) return false;
+        setError("Could not reach the backend.");
+        return false;
+      }
+    },
+    [severity]
+  );
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    // One run at a time, back off while the backend is failing, pause while the
+    // tab is hidden and resume with an immediate run when it is visible again.
+    let cancelled = false;
+    let inFlight = false;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let consecutiveFailures = 0;
+    const controller = new AbortController();
+    const isCancelled = () => cancelled;
+
+    const clearTimer = () => {
+      if (timerId !== null) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+    };
+
+    const scheduleNext = () => {
+      if (cancelled || document.hidden) return;
+      timerId = setTimeout(() => {
+        void runPoll();
+      }, nextDelay(consecutiveFailures, POLL_BASE_MS, POLL_MAX_MS));
+    };
+
+    const runPoll = async () => {
+      if (inFlight || cancelled) return;
+      inFlight = true;
+      const success = await load(isCancelled, controller.signal);
+      inFlight = false;
+      if (cancelled) return;
+      consecutiveFailures = success ? 0 : consecutiveFailures + 1;
+      scheduleNext();
+    };
+
+    const onVisibilityChange = () => {
+      clearTimer();
+      if (!document.hidden) void runPoll();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    void runPoll();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimer();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [load]);
 
   // Dynamically extract distinct techniques and tactics from current incidents

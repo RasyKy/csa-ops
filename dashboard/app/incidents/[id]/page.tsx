@@ -25,6 +25,8 @@ import { deriveIncidentStatus } from "@/lib/incidents";
 import { tzLabel } from "@/lib/time";
 import type { Graph, IncidentDetail } from "@/lib/types";
 
+export const maxDuration = 60;
+
 // Server component: fetches FastAPI directly on the server. The dashboard
 // API key never reaches the browser this way -- see lib/api.ts.
 async function getIncident(id: string): Promise<IncidentDetail | null> {

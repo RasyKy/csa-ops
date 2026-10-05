@@ -86,7 +86,7 @@ def bootstrap_demo(settings: Settings, seed_dir: Path | None = None) -> None:
         if intake_path.is_file()
         else {"watermark": None, "processed_ids": []}
     )
-    cases_data: list[dict[str, Any]] | None = (
+    cases_data: dict[str, Any] | list[dict[str, Any]] | None = (
         json.loads(cases_path.read_text(encoding="utf-8")) if cases_path.is_file() else None
     )
 
@@ -96,9 +96,13 @@ def bootstrap_demo(settings: Settings, seed_dir: Path | None = None) -> None:
         if "incident_id" in action:
             seeded_ids.add(action["incident_id"])
     if cases_data:
-        for case in cases_data:
-            if "incident_id" in case:
-                seeded_ids.add(case["incident_id"])
+        if isinstance(cases_data, dict):
+            for case_id in cases_data.keys():
+                seeded_ids.add(case_id)
+        elif isinstance(cases_data, list):
+            for case in cases_data:
+                if isinstance(case, dict) and "incident_id" in case:
+                    seeded_ids.add(case["incident_id"])
 
     unknown_ids = sorted(seeded_ids - generated_ids)
     if unknown_ids:

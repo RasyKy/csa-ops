@@ -60,9 +60,12 @@ In demo mode:
 | `LLM_BASE_URL` | Render | Optional | `""` | Custom API base URL if using an inference proxy. |
 
 ### Vercel Environment Variables (Frontend)
-*(To be finalized in step 13b)*:
+The dashboard deployment on Vercel requires the following environment variables (see `docs/deploy-vercel.md` for full setup instructions):
 - `BACKEND_URL`: Public HTTPS URL of your Render web service (e.g. `https://csa-ops-backend.onrender.com`).
 - `DASHBOARD_API_KEY`: Exactly matching the 32+ character key configured on Render.
+- `DASHBOARD_PASSWORD_HASH`: Scrypt password hash (`<salt_hex>:<hash_hex>`) generated via `node scripts/hash-password.mjs "<password>"`.
+- `SESSION_SECRET`: Cryptographically strong random string of at least 32 characters for session HMAC signing.
+- `SESSION_TTL_HOURS`: Optional session duration in hours (defaults to 8 hours).
 
 ---
 
@@ -108,7 +111,7 @@ If you wish to prevent spin-down and eliminate the cold start delay:
 ## 6. Security and Operational Limits
 
 ### Authentication and Access Control
-- All operational endpoints (`/incidents`, `/alerts`, `/metrics/*`, `/cases`, etc.) strictly require the `X-API-Key` header matching `DASHBOARD_API_KEY`. Requests without a key receive `401 Unauthorized`; requests with an invalid key receive `403 Forbidden`.
+- All operational endpoints (`/incidents`, `/alerts`, `/metrics/*`, `/cases`, etc.) strictly require the `X-API-Key` header matching `DASHBOARD_API_KEY`. Requests without a key receive `401 Unauthorized`; requests with an invalid key receive `403 Forbidden`. In production mode (`APP_ENV=production`), `GET /health` also requires `DASHBOARD_API_KEY`.
 - The only unauthenticated endpoint is `GET /healthz`, which returns only `{"status":"ok"}` with no internal metadata, timestamps, or system paths.
 - Interactive documentation (`/docs`, `/redoc`) and schema definition (`/openapi.json`) are completely disabled in production mode (`APP_ENV=production`), returning `404 Not Found`.
 - To rotate keys: change `DASHBOARD_API_KEY` on Render and Vercel in parallel.

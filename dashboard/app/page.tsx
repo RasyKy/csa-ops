@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { nextDelay } from "@/lib/pollBackoff";
 
 import { AlertsTimeseriesChart } from "@/components/metrics/AlertsTimeseriesChart";
 import { DataSourcesIndicator } from "@/components/metrics/DataSourcesIndicator";
@@ -28,7 +29,8 @@ import type {
   MetricsTriage,
 } from "@/lib/types";
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_BASE_MS = 3000;
+const POLL_MAX_MS = 30000;
 // GET /incidents caps limit at 500 (backend/app/routers/incidents.py) --
 // far more than enough to cover every incident in range at this project's
 // scale. This same fetch backs both the open-incident count and the
@@ -64,41 +66,106 @@ export default function OverviewPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (isCancelled: () => boolean) => {
+  // Returns true on success, false on any network or non-2xx error.
+  const load = useCallback(async (isCancelled: () => boolean, signal: AbortSignal): Promise<boolean> => {
     const qs = `?range=${range}`;
     const since = sinceForRange(range);
     const incidentsQs = new URLSearchParams({ limit: String(INCIDENTS_FETCH_LIMIT), ...(since ? { since } : {}) });
     try {
-      const [summary, timeseries, top, mitre, response, triage, pipeline, incidents] = await Promise.all([
-        fetch(`/api/metrics/summary${qs}`).then((r) => r.json()),
-        fetch(`/api/metrics/timeseries${qs}`).then((r) => r.json()),
-        fetch(`/api/metrics/top${qs}`).then((r) => r.json()),
-        fetch(`/api/metrics/mitre${qs}`).then((r) => r.json()),
-        fetch(`/api/metrics/response${qs}`).then((r) => r.json()),
-        fetch(`/api/metrics/triage${qs}`).then((r) => r.json()),
-        fetch(`/api/metrics/pipeline`).then((r) => r.json()),
-        fetch(`/api/incidents?${incidentsQs.toString()}`).then((r) => r.json()),
+      const responses = await Promise.all([
+        fetch(`/api/metrics/summary${qs}`, { signal }),
+        fetch(`/api/metrics/timeseries${qs}`, { signal }),
+        fetch(`/api/metrics/top${qs}`, { signal }),
+        fetch(`/api/metrics/mitre${qs}`, { signal }),
+        fetch(`/api/metrics/response${qs}`, { signal }),
+        fetch(`/api/metrics/triage${qs}`, { signal }),
+        fetch(`/api/metrics/pipeline`, { signal }),
+        fetch(`/api/incidents?${incidentsQs.toString()}`, { signal }),
       ]);
-      if (isCancelled()) return;
-      setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents });
+      // Count any non-2xx response as a failure so back-off activates.
+      if (responses.some((r) => !r.ok)) {
+        if (isCancelled()) return false;
+        setError("Could not reach the backend.");
+        return false;
+      }
+      const [summary, timeseries, top, mitre, response, triage, pipeline, incidents] =
+        await Promise.all(responses.map((r) => r.json() as Promise<unknown>));
+      if (isCancelled()) return false;
+      setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents } as PageState);
       setLastUpdated(new Date());
       setError(null);
+      return true;
     } catch {
-      if (isCancelled()) return;
+      if (isCancelled()) return false;
       setError("Could not reach the backend.");
+      return false;
     }
   }, [range]);
 
   useEffect(() => {
-    // Set on range change or unmount so a late response for the previous range is discarded.
+    // Effect-scoped locals -- no useRef needed (same pattern as BackendWakeBanner).
     let cancelled = false;
+    let inFlight = false;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let consecutiveFailures = 0;
+    // Aborted on range change or unmount, so a superseded run's requests are
+    // cancelled instead of overlapping the new run's.
+    const controller = new AbortController();
+
     const isCancelled = () => cancelled;
-    setData(EMPTY_STATE); // show loading state immediately on range change, not stale data
-    load(isCancelled);
-    const interval = setInterval(() => load(isCancelled), POLL_INTERVAL_MS);
+
+    const runPoll = async () => {
+      if (inFlight) return;
+      if (cancelled) return;
+      inFlight = true;
+      const success = await load(isCancelled, controller.signal);
+      inFlight = false;
+      if (cancelled) return;
+      if (success) {
+        consecutiveFailures = 0;
+      } else {
+        consecutiveFailures += 1;
+      }
+      schedulNext();
+    };
+
+    const schedulNext = () => {
+      if (cancelled) return;
+      if (typeof document !== "undefined" && document.hidden) return;
+      const delay = nextDelay(consecutiveFailures, POLL_BASE_MS, POLL_MAX_MS);
+      timerId = setTimeout(() => { void runPoll(); }, delay);
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document === "undefined") return;
+      if (document.hidden) {
+        if (timerId !== null) {
+          clearTimeout(timerId);
+          timerId = null;
+        }
+      } else {
+        if (timerId !== null) {
+          clearTimeout(timerId);
+          timerId = null;
+        }
+        void runPoll();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Show loading state immediately on range change, not stale data.
+    setData(EMPTY_STATE);
+    void runPoll();
+
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      controller.abort();
+      if (timerId !== null) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [load]);
 

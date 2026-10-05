@@ -86,7 +86,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health.router)
     application.include_router(alerts.router)
     application.include_router(incidents.router)
-    application.include_router(agent.router)
+
+    if is_production:
+        raw_agent_key = os.getenv("AGENT_API_KEY")
+        agent_key = settings.agent_api_key
+        has_custom_key = bool(raw_agent_key) or (agent_key and agent_key != "changeme-agent-key")
+        if has_custom_key and agent_key and len(agent_key) >= 32:
+            application.include_router(agent.router)
+        else:
+            logging.getLogger("csa_ops").warning(
+                "AGENT_API_KEY is not set or shorter than 32 characters; agent routes are disabled in production mode"
+            )
+    else:
+        application.include_router(agent.router)
+
     application.include_router(response.router)
     application.include_router(ai.router)
     application.include_router(metrics.router)
