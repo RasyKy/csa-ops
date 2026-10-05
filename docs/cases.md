@@ -63,3 +63,88 @@ label, not an identity.
   not import each other (enforced in `tests/ai_explain/test_isolation.py`), and
   the case endpoints never call the response engine or write alerts, incidents,
   triage or explain data.
+
+## UI
+
+### The incident page
+
+- **Case card** (top of the right rail) and the header show the same case status
+  and assignee.
+- **Status badge.** Open, Investigating or Resolved. When resolved, the card also
+  shows the verdict, the resolution note and when it was resolved.
+- **Assignee.** A list of the names from `CASE_ASSIGNEES`, with "Unassigned"
+  first. Picking one saves it at once.
+- **Start investigating** and **Resolve** are both available on an Open case, so a
+  case can be resolved without being investigated first (the audit trail then has
+  a `resolved` event and no `status_changed` event). An investigating case offers
+  **Resolve** and **Mark as open**; a resolved case offers **Reopen**.
+- **Resolve.** Opens a dialog. Choose a verdict (none is preselected), add an
+  optional note of up to 1000 characters, then "Resolve case". Escape, Cancel or a
+  click outside closes it without changing anything, and nothing typed survives
+  the dialog closing.
+- **Reopen.** Puts a resolved case back to investigating. The verdict and note are
+  cleared, and every earlier event stays in the audit trail.
+- **Recorded as.** The name sent with each change (`X-Actor`). Click "Change" to
+  edit it; it is kept in the browser (`localStorage`, key `csa-actor-name`) and
+  falls back to "Analyst". It is trimmed, stripped of control characters and
+  limited to 64 characters.
+- **Conflicts.** Every change sends the version the page last saw. If someone else
+  changed the case first, the page shows the latest version with the notice "This
+  case was changed by someone else" instead of overwriting it.
+- **Unavailable.** If the case service cannot be reached the card shows a notice
+  with Retry. The rest of the incident page keeps working. The card refreshes
+  every 15 seconds while the tab is visible, backing off while the backend is
+  failing.
+
+### Case activity and notes
+
+The **Case activity** card sits directly below the AI triage card. It has a note
+box on top ("Add a note", up to 2000 characters, Ctrl or Cmd plus Enter to send)
+and the audit trail below it, newest first. Each row has a plain sentence ("Priya
+changed the status from Open to Investigating"), the time (the exact UTC time is
+in its title), and, for notes and resolutions, the text in a bordered block.
+
+The first 6 events are shown; "Show all N events" reveals the rest. The oldest
+row is always "Case opened". Notes are always shown as plain text, never as HTML,
+so markup in a note appears literally. A note that fails to save stays in the box
+with an error underneath it, and an empty or whitespace-only note is never sent.
+
+### Lists
+
+- **Incidents list.** New **Status** and **Assignee** columns (before Last action),
+  both sortable, and two filters beside the existing ones. Status: All, Active
+  (open or investigating), Open, Investigating, Resolved. Assignee: All,
+  Unassigned, or a name. They are kept in the URL as `status` and `assignee`. A
+  legacy `?status=open` link now means Open exactly; the old filter that guessed
+  status from the last response action is gone. Last action is hidden below 1280px
+  wide, before any other column. The Raised column shows a formatted date and time
+  (the exact UTC time is in the cell's title, the display time zone in the column's
+  title) and sorts by the real timestamp.
+- **Overview.** "Open incidents" counts incidents whose case is open or
+  investigating, so resolving a case removes it. It links to
+  `/incidents?status=active`, and the Newest incidents list shows the same
+  unresolved incidents.
+- **When case data is unavailable** the list and the Overview keep working and
+  treat incidents without case data as Open (the list adds a muted "Case data
+  unavailable" note beside the result count).
+- An incident with no stored case is Open and unassigned everywhere.
+
+The incident's Details card shows "Not classified" when the detection did not match
+a scenario.
+
+### Safety
+
+The recorded name is only a label. The dashboard has one shared login, so names
+are not verified and anyone can record changes under any name.
+
+Case changes are for analysts. They never change detections or response actions:
+no case control starts a response action, and the browser talks only to the
+dashboard's own `/api/cases` and `/api/incidents/<id>/case` routes, which forward
+to the case endpoints and nothing else.
+
+The proxy routes validate the incident id (letters, digits, `_` and `-`, up to 64
+characters), require a JSON object body of at most 8 KB on changes, pass the
+backend status and body through unchanged (including the 409 body that carries the
+current case) and never forward cookies. The browser URI-encodes the name in
+`X-Actor`; because the backend takes the name as an HTTP header, characters outside
+Latin-1 are stored as `?`.
