@@ -192,3 +192,90 @@ def test_isolation_walker_would_catch_a_case_import(tmp_path, monkeypatch):
     (fake / "sneaky.py").write_text("from backend.app.store import case_store")
     imported = _direct_imports(fake / "sneaky.py", "engine.ai_explain")
     assert "backend.app.store.case_store" in imported
+
+
+# --- Case metrics and the report's Case section (Step 11c): case data is
+# bookkeeping. It must never reach engine/ (detection, correlation, response, AI),
+# and the pure case modules must not reach engine/ either. ---
+
+CASE_VIEW_MODULES = [
+    "backend.metrics.case_metrics",
+    "backend.app.case_text",
+]
+CASE_VIEW_PREFIXES = ("backend.metrics.case_metrics", "backend.app.case_text", "backend.app.reports")
+AI_AND_AGENT_ROUTERS = [
+    "backend.app.routers.ai",
+    "backend.app.routers.agent",
+]
+
+
+def _all_engine_modules() -> list[str]:
+    modules = []
+    for path in sorted((REPO_ROOT / "engine").rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        relative = path.relative_to(REPO_ROOT).with_suffix("")
+        parts = list(relative.parts)
+        if parts[-1] == "__init__":
+            parts = parts[:-1]
+        modules.append(".".join(parts))
+    return modules
+
+
+def test_case_view_modules_exist_and_are_not_stubs():
+    for module_name in CASE_VIEW_MODULES + ["backend.app.reports.incident_report", "backend.app.reports.pdf_renderer"]:
+        path = _module_to_path(module_name)
+        assert path is not None, f"{module_name} has no source file"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        assert any(isinstance(n, ast.FunctionDef) for n in ast.iter_child_nodes(tree)), module_name
+
+
+def test_engine_never_reaches_case_metrics_case_text_or_reports():
+    engine_modules = _all_engine_modules()
+    assert "engine.response.commander" in engine_modules and "engine.ai_explain.triage" in engine_modules
+    reached = _walk_import_graph(engine_modules)
+    offending = sorted(m for m in reached if m.startswith(CASE_VIEW_PREFIXES))
+    assert offending == [], f"engine code reaches case metrics, case text or the report builder: {offending}"
+
+
+def test_engine_source_never_names_case_metrics_case_text_or_reports():
+    for module_name in _all_engine_modules():
+        path = _module_to_path(module_name)
+        if path is None:
+            continue
+        source = path.read_text(encoding="utf-8")
+        for needle in ("case_metrics", "case_text", "app.reports", "incident_report", "pdf_renderer"):
+            assert needle not in source, f"{module_name} mentions {needle}"
+
+
+def test_pure_case_modules_import_only_the_standard_library():
+    for module_name in CASE_VIEW_MODULES:
+        imported = _direct_imports(_module_to_path(module_name), module_name.rsplit(".", 1)[0])
+        offending = sorted(m for m in imported if m.startswith(OWN_PACKAGE_PREFIXES))
+        assert offending == [], f"{module_name} imports app or engine code: {offending}"
+
+
+def test_ai_and_agent_routers_never_use_case_data_or_case_metrics():
+    # Direct imports and names only. Walking the whole graph would flag the shared
+    # backend.app.store package, whose __init__ also builds the case store for the
+    # case routes; what matters is that these routers never import or call it.
+    for module_name in AI_AND_AGENT_ROUTERS:
+        path = _module_to_path(module_name)
+        imported = _direct_imports(path, module_name.rsplit(".", 1)[0])
+        offending = sorted(
+            m for m in imported
+            if m.startswith(CASE_PREFIXES + CASE_VIEW_PREFIXES) or m == "backend.app.routers.cases"
+        )
+        assert offending == [], f"{module_name} imports case code: {offending}"
+        source = path.read_text(encoding="utf-8")
+        for needle in ("get_case_store", "CaseStore", "case_metrics", "case_text", "cases.json"):
+            assert needle not in source, f"{module_name} mentions {needle}"
+
+
+def test_isolation_walker_would_catch_a_case_metrics_import(tmp_path):
+    fake = tmp_path / "engine" / "response"
+    fake.mkdir(parents=True)
+    (fake / "__init__.py").write_text("")
+    (fake / "sneaky.py").write_text("from backend.metrics import case_metrics")
+    imported = _direct_imports(fake / "sneaky.py", "engine.response")
+    assert "backend.metrics.case_metrics" in imported

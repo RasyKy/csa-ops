@@ -28,6 +28,7 @@ import type {
   MetricsTimeseries,
   MetricsTop,
   MetricsTriage,
+  MetricsCases,
 } from "@/lib/types";
 
 const POLL_BASE_MS = 3000;
@@ -50,6 +51,8 @@ interface PageState {
   incidents: IncidentListItem[] | null;
   // null when the case service did not answer: every incident then counts as open.
   cases: CaseSummary[] | null;
+  // null when /api/metrics/cases did not answer: the case rows are then left out.
+  caseMetrics: MetricsCases | null;
 }
 
 const EMPTY_STATE: PageState = {
@@ -62,6 +65,7 @@ const EMPTY_STATE: PageState = {
   pipeline: null,
   incidents: null,
   cases: null,
+  caseMetrics: null,
 };
 
 export default function OverviewPage() {
@@ -79,6 +83,7 @@ export default function OverviewPage() {
       // The case summaries ride along in the same cycle. A failure there is not
       // a poll failure: the Overview just counts every incident as open.
       const casesRequest = fetch("/api/cases", { signal, cache: "no-store" }).catch(() => null);
+      const caseMetricsRequest = fetch(`/api/metrics/cases${qs}`, { signal, cache: "no-store" }).catch(() => null);
       const responses = await Promise.all([
         fetch(`/api/metrics/summary${qs}`, { signal }),
         fetch(`/api/metrics/timeseries${qs}`, { signal }),
@@ -107,8 +112,18 @@ export default function OverviewPage() {
           cases = null;
         }
       }
+      const caseMetricsRes = await caseMetricsRequest;
+      let caseMetrics: MetricsCases | null = null;
+      if (caseMetricsRes && caseMetricsRes.ok) {
+        try {
+          const parsed = (await caseMetricsRes.json()) as MetricsCases | null;
+          if (parsed && typeof parsed === "object" && parsed.ai_agreement && parsed.status_counts) caseMetrics = parsed;
+        } catch {
+          caseMetrics = null;
+        }
+      }
       if (isCancelled()) return false;
-      setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents, cases } as PageState);
+      setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents, cases, caseMetrics } as PageState);
       setLastUpdated(new Date());
       setError(null);
       return true;
@@ -204,7 +219,7 @@ export default function OverviewPage() {
       {/* Layout is identical across every range: sections always render in
           the same positions, counts show 0 when empty (a real value),
           averages show a placeholder instead. */}
-      <NeedsAttention incidents={data.incidents} response={data.response} cases={data.cases} />
+      <NeedsAttention incidents={data.incidents} response={data.response} cases={data.cases} caseMetrics={data.caseMetrics} />
 
       <div
         className={`mb-6 ${
@@ -228,8 +243,8 @@ export default function OverviewPage() {
 
       <section className="mb-6 grid gap-4 lg:grid-cols-3">
         <ResponsePanel data={data.response} />
-        <TriagePanel data={data.triage} />
-        <DetectionQualityPanel top={data.top} />
+        <TriagePanel data={data.triage} caseMetrics={data.caseMetrics} />
+        <DetectionQualityPanel top={data.top} caseMetrics={data.caseMetrics} />
       </section>
 
       <PipelineHealthStrip data={data.pipeline} />

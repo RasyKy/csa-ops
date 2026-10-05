@@ -311,3 +311,46 @@ export interface CaseSummary {
   resolved_time: string | null;
   version: number;
 }
+
+// --- Case metrics (GET /metrics/cases; backend/metrics/case_metrics.py) ---
+
+export interface CaseStatusCounts {
+  open: number;
+  investigating: number;
+  resolved: number;
+}
+
+export interface AiAgreement {
+  resolved_total: number;
+  scored: number;
+  agree: number;
+  disagree: number;
+  ai_uncertain: number;
+  unscored: number;
+  confusion: Record<string, number>;
+}
+
+export interface ResolveTimeStats {
+  count: number;
+  median_seconds: number | null;
+  p90_seconds: number | null;
+  values_seconds: number[] | null;
+}
+
+export interface VerdictCounts {
+  true_positive: number;
+  false_positive: number;
+  benign_activity: number;
+  undetermined: number;
+  total: number;
+}
+
+export interface MetricsCases {
+  range: string;
+  since: string | null;
+  as_of: string;
+  status_counts: MetricValue<CaseStatusCounts>;
+  ai_agreement: MetricValue<AiAgreement>;
+  resolve_time: MetricValue<ResolveTimeStats>;
+  verdicts_by_rule: MetricValue<Record<string, VerdictCounts>>;
+}

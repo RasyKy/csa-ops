@@ -148,3 +148,101 @@ backend status and body through unchanged (including the 409 body that carries t
 current case) and never forward cookies. The browser URI-encodes the name in
 `X-Actor`; because the backend takes the name as an HTTP header, characters outside
 Latin-1 are stored as `?`.
+
+## Incident report
+
+`GET /incidents/{id}/report?format=md|pdf` includes a **Case** section. It sits
+after Response actions and before the footer: the report already runs from what
+happened (summary, attack chain, indicators) through the AI's view and what the
+system did, and the analyst's handling is the last step of that story, in line
+with the post-incident activity step of NIST SP 800-61. An existing legacy "Case
+details" block (only present if an incident document itself carries status or
+assignee fields) is left where it was.
+
+What it contains:
+
+- **Status** and **Assignee** ("Unassigned" when there is none).
+- When the case is resolved: **Verdict**, **Resolution note** (if any) and
+  **Resolved time**.
+- **Case activity**: every event oldest first as `<time> | <sentence>`, using the
+  report's existing time format (the stored UTC time). Notes and resolution notes
+  appear as an indented block quote under their event. The wording comes from
+  `backend/app/case_text.py`, which mirrors `dashboard/lib/caseDisplay.ts`.
+- A case with no events (the virtual default) is one line: "No analyst activity
+  recorded. Status: Open."
+- At most 200 events are listed. The newest 200 are kept, still oldest first, and a
+  last line says how many older events were left out.
+
+Analyst-written text (actor names, assignees, notes, resolution notes) is
+untrusted. It goes through the same neutralization as other free text in the
+report: Markdown special characters are escaped, a note line that starts with a
+block marker (`#`, `-`, `>`, `1.`) is defused, and the PDF escapes HTML, so a note
+can never create a heading, list, link, code block or HTML element. Long strings
+without spaces wrap. The Markdown and PDF come from the same source text, so they
+cannot drift.
+
+The endpoints read the incident's case from the case store (the virtual default
+when none is stored) and never write. `include_case=false` leaves the section out.
+If `cases.json` cannot be used (corrupt, or an entry that does not validate), the
+export still works and simply has no Case section. A builder call with `case=None`
+produces exactly the report as it was before cases existed.
+
+## Case metrics
+
+Bookkeeping numbers over resolved cases. They never feed detection, correlation,
+scoring, response actions or AI output (`engine/` does not import the metric
+code; `tests/ai_explain/test_isolation.py` enforces it), and a corrupt or missing
+`cases.json` just reads as "no cases".
+
+`GET /metrics/cases?range=` (dashboard key; the same `range` handling as the
+other metrics: incidents are scoped by `incident_raised_time`). The pure
+functions are in `backend/metrics/case_metrics.py`.
+
+| Value | Meaning |
+| --- | --- |
+| `status_counts` | open, investigating and resolved over the incidents in range. An incident without a stored case is open. Always `ok` when there are incidents. |
+| `ai_agreement` | Over **resolved** cases only (a reopened case is investigating again and does not count). Each resolved case is exactly one of `scored`, `ai_uncertain` or `unscored`, so `resolved_total = scored + ai_uncertain + unscored`. `agree` and `disagree` split `scored`. `confusion` has the four cells `ai_<side>_analyst_<side>`. |
+| `resolve_time` | Seconds from a case's first event to its last `resolved` event (a case reopened and resolved again counts to the second resolution): `count`, `median_seconds`, `p90_seconds`, `values_seconds`. Cases with missing or unparseable times are skipped. |
+| `verdicts_by_rule` | `{rule_id: {true_positive, false_positive, benign_activity, undetermined, total}}`. Every alert of a resolved incident counts once under its rule with the incident's analyst verdict. |
+
+Each is wrapped as `{value, status}`; `status` is `no_data` when no case is
+resolved (and `ok` otherwise).
+
+**Sides.** For the AI, `true_positive` and `likely_true_positive` are malicious,
+`false_positive` and `likely_false_positive` are benign, and `needs_review` is
+uncertain. For the analyst, `true_positive` is malicious, `false_positive` and
+`benign_activity` are benign, and `undetermined` is not scored. Triage that failed,
+is missing or has no verdict is not scored.
+
+**On the Overview** (inside existing cards, no new cards; the rows are left out if
+`/api/metrics/cases` is unavailable):
+
+- **AI triage**: "Analyst agreement", for example "5 of 7 resolved incidents" (always
+  counts, never percentages), a muted line with the rest ("1 disagree, 2 not scored,
+  1 uncertain"), and a tooltip explaining the sides. With no resolved case it reads
+  "No resolved incidents yet".
+- **Open incidents**: a muted line "3 open · 2 investigating · 3 resolved" and, when
+  at least one case is resolved, "Median time to resolve: 12 min (3 resolved)".
+- **Detection quality**: below the existing fixture-label rows, an "Analyst verdicts"
+  block with "`<fp>` of `<total>` false positive" per rule (and "n benign" when there
+  are benign verdicts), most alerts first. It appears only when at least one rule has
+  a resolved verdict.
+
+### Evidence for the final report
+
+```
+python scripts/ai_vs_analyst_report.py --set realistic
+python scripts/ai_vs_analyst_report.py --set default
+python scripts/ai_vs_analyst_report.py --set NAME [--data-root DIR] [--fixture-root DIR]
+```
+
+It prints a Markdown table (incident, host, scenario, AI verdict with confidence,
+analyst verdict, agreement as Agree, Disagree, AI uncertain or Not scored), the
+summary counts and the confusion table, using the same functions as the endpoint,
+so the report and the Overview agree. It is read only and never writes a file. It
+reads `fixtures/[NAME/]incidents.json`, `data/[NAME/]incident_triage.json` and
+`data/[NAME/]cases.json`.
+
+Caution: with only a handful of resolved incidents these numbers are
+illustrations of how the comparison works, not statistics about how accurate the AI
+is. Say so next to any table you paste into a report.

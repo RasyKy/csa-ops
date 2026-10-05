@@ -1,4 +1,5 @@
-import type { MetricsTriage } from "@/lib/types";
+import { agreementDetailText, agreementText } from "@/lib/caseMetricsDisplay";
+import type { MetricsCases, MetricsTriage } from "@/lib/types";
 import { InfoTooltip } from "./InfoTooltip";
 import { MetricState } from "./MetricState";
 
@@ -11,7 +12,10 @@ function formatSeconds(seconds: number): string {
 // Compact by design -- headline numbers plus the top verdict, not the full
 // distribution table (that stays reasonable to add back on /incidents if
 // ever needed, but doesn't belong in a 3-across bottom row).
-export function TriagePanel({ data }: { data: MetricsTriage | null }) {
+export function TriagePanel({ data, caseMetrics = null }: { data: MetricsTriage | null; caseMetrics?: MetricsCases | null }) {
+  const agreement = caseMetrics?.ai_agreement?.value ?? null;
+  const agreementDetail = agreement ? agreementDetailText(agreement) : null;
+
   const stats = data?.stats.status === "ok" ? data.stats.value : null;
   const topVerdict = stats
     ? Object.entries(stats.verdict_counts).sort(([, a], [, b]) => b - a)[0]
@@ -52,6 +56,22 @@ export function TriagePanel({ data }: { data: MetricsTriage | null }) {
                 {topVerdict[0].replace(/_/g, " ")} ({topVerdict[1]})
               </span>
             </div>
+          )}
+        </div>
+      )}
+      {agreement && (
+        <div className="mt-1.5 text-sm" data-testid="analyst-agreement">
+          <div className="flex flex-wrap justify-between gap-x-2">
+            <span className="flex items-center gap-1 text-ink-muted">
+              Analyst agreement
+              <InfoTooltip text="How often the AI and the analyst chose the same side on resolved incidents. AI: true positive and likely true positive are malicious; false positive and likely false positive are benign; needs review is uncertain. Analyst: true positive is malicious; false positive and benign activity are benign. Undetermined verdicts are not scored." />
+            </span>
+            <span data-testid="analyst-agreement-text">{agreementText(agreement)}</span>
+          </div>
+          {agreementDetail && (
+            <p className="mt-0.5 text-right text-xs text-ink-subtle" data-testid="analyst-agreement-detail">
+              {agreementDetail}
+            </p>
           )}
         </div>
       )}
