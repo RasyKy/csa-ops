@@ -78,7 +78,8 @@ test.describe("Incident Detail Layout and Styling", () => {
 
           // 6. Details card: contains Scenario, Alerts, Risk score, Tactics, Techniques only
           // and not Host, User, Raised
-          const detailsCard = page.locator("main > div.grid > div:last-child > div").first();
+          // The Case card is now the first rail card, so Details is the second.
+          const detailsCard = page.locator("main > div.grid > div:last-child > div").nth(1);
           const detailsLabels = await detailsCard.locator("dt").allInnerTexts();
           expect(detailsLabels).toContain("Scenario");
           expect(detailsLabels).toContain("Alerts");
@@ -111,7 +112,8 @@ test.describe("Incident Detail Layout and Styling", () => {
           const detailsLabelBox = await detailsLabel.boundingBox();
           const detailsIndent = (detailsLabelBox?.x ?? 0) - (detailsCardBox?.x ?? 0);
 
-          const responseCard = page.locator("main > div.grid > div:last-child > div").nth(2);
+          // Rail order: Case, Details, Indicators, Response history.
+          const responseCard = page.locator("main > div.grid > div:last-child > div").nth(3);
           const responseText = responseCard.locator("li p").first();
           const responseCardBox = await responseCard.boundingBox();
           const responseTextBox = await responseText.boundingBox();
@@ -258,7 +260,8 @@ test.describe("Incident Detail Layout and Styling", () => {
           rail.scrollTop = rail.scrollHeight;
         }
 
-        const responseCard = rail?.querySelectorAll("div.border-line.bg-surface")[2];
+        // Rail order: Case, Details, Indicators, Response history.
+        const responseCard = rail?.querySelectorAll("div.border-line.bg-surface")[3];
         const cardBottom = responseCard ? responseCard.getBoundingClientRect().bottom : 0;
 
         return {

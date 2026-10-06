@@ -1,4 +1,4 @@
-"""GET /metrics/{summary,timeseries,top,mitre,response,triage,pipeline}
+"""GET /metrics/{summary,timeseries,top,mitre,response,triage,pipeline,cases}
 
 Read-only: no write to alerts/incidents, no call into the response engine,
 no kill-switch/dry-run state changes. engine/ai_explain is never imported
@@ -13,13 +13,14 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 
-from backend.metrics import calc
+from backend.metrics import calc, case_metrics
 from backend.metrics.coverage import parse_rule_coverage, parse_rule_tactics
 from engine.response.safety import KillSwitch, global_mode
 
 from ..auth import require_dashboard_key
 from ..config import get_settings
-from ..store import get_store
+from ..store import get_case_store, get_store
+from ..store.case_store import CaseStore
 
 router = APIRouter(prefix="/metrics")
 
@@ -256,6 +257,55 @@ def get_triage_metrics(range: str = "7d", store=Depends(get_store), _key=Depends
     records = _filter_by_incident_range(store.list_all_triage(), store, since)
     stats = calc.compute_triage_stats(records)
     return {**_envelope(range, since), "stats": _metric(stats)}
+
+
+@router.get("/cases")
+def get_case_metrics(
+    range: str = "7d",
+    store=Depends(get_store),
+    cases: CaseStore = Depends(get_case_store),
+    _key=Depends(require_dashboard_key),
+):
+    """Analyst case metrics for incidents raised in the range: status counts,
+    AI-versus-analyst agreement, time to resolve and analyst verdicts per rule.
+    Read-only bookkeeping: nothing here writes, and nothing feeds detection,
+    response or AI."""
+    since = _since_for_range(range)
+    incidents = store.list_incidents(limit=10_000, since=since)
+    incident_ids = [i["incident_id"] for i in incidents]
+    wanted = set(incident_ids)
+
+    # Only the cases of in-range incidents. list_summaries tells us which incidents
+    # have a stored case; get() returns the full document (with its events).
+    cases_by_id = {}
+    for summary in cases.list_summaries():
+        if summary.incident_id in wanted:
+            cases_by_id[summary.incident_id] = cases.get(summary.incident_id).model_dump(mode="json")
+
+    triage_by_id = {t["incident_id"]: t for t in store.list_all_triage() if t.get("incident_id") in wanted}
+
+    status_counts = case_metrics.compute_status_counts(incidents, cases_by_id)
+    agreement = case_metrics.compute_ai_agreement(incidents, triage_by_id, cases_by_id)
+    resolve_time = case_metrics.compute_resolve_times(cases_by_id, incident_ids)
+
+    resolved_alert_ids = sorted(
+        {
+            alert_id
+            for incident in incidents
+            if cases_by_id.get(incident["incident_id"], {}).get("status") == "resolved"
+            for alert_id in incident.get("alert_ids") or []
+        }
+    )
+    alerts = store.get_alerts_by_ids(resolved_alert_ids) if resolved_alert_ids else []
+    by_rule = case_metrics.compute_verdicts_by_rule(alerts, incidents, cases_by_id)
+
+    return {
+        **_envelope(range, since),
+        "status_counts": {"value": status_counts, "status": "ok" if incidents else "no_data"},
+        "ai_agreement": {"value": agreement, "status": "ok" if agreement["resolved_total"] > 0 else "no_data"},
+        "resolve_time": {"value": resolve_time, "status": "ok" if resolve_time["count"] > 0 else "no_data"},
+        "verdicts_by_rule": {"value": by_rule, "status": "ok" if by_rule else "no_data"},
+    }
 
 
 @router.get("/pipeline")

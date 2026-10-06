@@ -15,7 +15,7 @@ test.describe("Incidents Page Redesign", () => {
     });
 
     const firstRow = page.locator("table tbody tr").first();
-    const actionCell = firstRow.locator("td").nth(7).locator("span");
+    const actionCell = firstRow.locator("td").nth(9).locator("span");
 
     // Hover to trigger tooltip
     await actionCell.hover();
@@ -49,7 +49,7 @@ test.describe("Incidents Page Redesign", () => {
     });
 
     const secondRow = page.locator("table tbody tr").nth(1);
-    const actionCell = secondRow.locator("td").nth(7).locator("span");
+    const actionCell = secondRow.locator("td").nth(9).locator("span");
 
     await actionCell.hover();
     await secondRow.focus();

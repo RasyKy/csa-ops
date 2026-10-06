@@ -10,20 +10,30 @@ export function Filters({
   search,
   techniqueOrTactic,
   techniquesAndTactics,
+  statusFilter,
+  assigneeFilter,
+  assigneeNames,
   onSeverityChange,
   onHostChange,
   onSearchChange,
   onTechniqueOrTacticChange,
+  onStatusFilterChange,
+  onAssigneeFilterChange,
 }: {
   severity: Severity | "";
   host?: string;
   search?: string;
   techniqueOrTactic?: string;
   techniquesAndTactics?: string[];
+  statusFilter?: string;
+  assigneeFilter?: string;
+  assigneeNames?: string[];
   onSeverityChange: (value: Severity | "") => void;
   onHostChange?: (value: string) => void;
   onSearchChange?: (value: string) => void;
   onTechniqueOrTacticChange?: (value: string) => void;
+  onStatusFilterChange?: (value: string) => void;
+  onAssigneeFilterChange?: (value: string) => void;
 }) {
   return (
     <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -77,6 +87,42 @@ export function Filters({
           ))}
         </select>
       </label>
+
+      {onStatusFilterChange && (
+        <label className="flex flex-col text-sm min-w-[130px]">
+          <span className="mb-1 text-zinc-500">Status</span>
+          <select
+            className="rounded border border-line-strong bg-surface px-2 py-1 text-sm text-ink"
+            value={statusFilter ?? "all"}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="open">Open</option>
+            <option value="investigating">Investigating</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </label>
+      )}
+
+      {onAssigneeFilterChange && (
+        <label className="flex flex-col text-sm min-w-[140px]">
+          <span className="mb-1 text-zinc-500">Assignee</span>
+          <select
+            className="rounded border border-line-strong bg-surface px-2 py-1 text-sm text-ink"
+            value={assigneeFilter ?? "all"}
+            onChange={(e) => onAssigneeFilterChange(e.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="unassigned">Unassigned</option>
+            {(assigneeNames ?? []).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {techniquesAndTactics && onTechniqueOrTacticChange && (
         <label className="flex flex-col text-sm min-w-[170px]">

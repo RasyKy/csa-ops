@@ -2,6 +2,7 @@ import { randomInt, scrypt, timingSafeEqual } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
+import { createThrottle } from "@/lib/loginThrottle";
 import { isAuthConfigured, originAllowed, sessionCookie, signSession, ttlSecondsFromEnv } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -12,43 +13,14 @@ const MAX_PASSWORD_CHARS = 200;
 const SCRYPT = { N: 16384, r: 8, p: 1 };
 const KEY_LENGTH = 32;
 
-const MAX_FAILURES = 5;
-const FAILURE_WINDOW_MS = 10 * 60 * 1000;
-const BLOCK_MS = 5 * 60 * 1000;
-const MAX_TRACKED_KEYS = 1000;
-
 // Best effort only: on serverless every instance has its own memory, so this
-// slows a guesser down but is not a hard limit (docs/auth.md).
-const attempts = new Map<string, { failures: number[]; blockedUntil: number }>();
+// slows a guesser down but is not a hard limit (docs/auth.md). The state lives on
+// globalThis so a dev-server module reload does not reset it.
+const throttle = createThrottle();
 
 function clientKey(request: Request): string {
   const first = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return first || "unknown";
-}
-
-function retryAfterSeconds(key: string, now: number): number {
-  const entry = attempts.get(key);
-  return entry && entry.blockedUntil > now ? Math.ceil((entry.blockedUntil - now) / 1000) : 0;
-}
-
-function recordFailure(key: string, now: number): void {
-  if (!attempts.has(key) && attempts.size >= MAX_TRACKED_KEYS) {
-    attempts.forEach((entry, k) => {
-      if (entry.blockedUntil <= now && entry.failures.every((t) => now - t > FAILURE_WINDOW_MS)) attempts.delete(k);
-    });
-    if (attempts.size >= MAX_TRACKED_KEYS) {
-      const oldest = attempts.keys().next().value;
-      if (oldest !== undefined) attempts.delete(oldest);
-    }
-  }
-  const entry = attempts.get(key) ?? { failures: [], blockedUntil: 0 };
-  entry.failures = entry.failures.filter((t) => now - t <= FAILURE_WINDOW_MS);
-  entry.failures.push(now);
-  if (entry.failures.length >= MAX_FAILURES) {
-    entry.blockedUntil = now + BLOCK_MS;
-    entry.failures = [];
-  }
-  attempts.set(key, entry);
 }
 
 function scryptAsync(password: string, salt: Buffer): Promise<Buffer> {
@@ -91,7 +63,7 @@ export async function POST(request: Request) {
   }
 
   const key = clientKey(request);
-  const wait = retryAfterSeconds(key, Date.now());
+  const wait = throttle.retryAfterSeconds(key, Date.now());
   if (wait > 0) {
     return NextResponse.json(
       { error: "Too many attempts." },
@@ -100,12 +72,12 @@ export async function POST(request: Request) {
   }
 
   if (!(await passwordMatches(password, passwordHash as string))) {
-    recordFailure(key, Date.now());
+    throttle.recordFailure(key, Date.now());
     await sleep(randomInt(400, 601));
     return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
   }
 
-  attempts.delete(key);
+  throttle.clear(key);
   const ttl = ttlSecondsFromEnv(process.env.SESSION_TTL_HOURS);
   const token = await signSession(secret as string, passwordHash as string, ttl);
   const res = NextResponse.json({ ok: true });

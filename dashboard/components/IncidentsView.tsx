@@ -5,12 +5,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Filters } from "@/components/Filters";
 import { SeverityBadge } from "@/components/SeverityBadge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { TriageBadge } from "@/components/TriageBadge";
 import { humanizeScenario } from "@/lib/incidentDisplay";
-import { deriveIncidentStatus, isOpenIncident } from "@/lib/incidents";
+import {
+  assigneeFilterMatches,
+  effectiveCase,
+  matchesStatusFilter,
+  normalizeStatus,
+  parseStatusFilter,
+  type StatusFilter,
+} from "@/lib/caseJoin";
 import { nextDelay } from "@/lib/pollBackoff";
 import { describeResponseAction } from "@/lib/responseWording";
-import type { IncidentListItem, Severity } from "@/lib/types";
+import { formatDateTime, formatUtc, tzLabel } from "@/lib/time";
+import type { CaseSummary, IncidentListItem, Severity } from "@/lib/types";
 
 const POLL_BASE_MS = 3000;
 const POLL_MAX_MS = 30000;
@@ -23,6 +32,8 @@ type SortColumn =
   | "alerts"
   | "raised"
   | "triage"
+  | "status"
+  | "assignee"
   | "last_action";
 type SortDirection = "asc" | "desc";
 
@@ -46,9 +57,9 @@ export function IncidentsView() {
     searchParams.get("search") ?? searchParams.get("host") ?? ""
   );
   const [technique, setTechnique] = useState(searchParams.get("technique") ?? "");
-  const [status, setStatus] = useState<"" | "open">(
-    searchParams.get("status") === "open" ? "open" : ""
-  );
+  // Case status filter. A legacy ?status=open link now means Open exactly.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(parseStatusFilter(searchParams.get("status")));
+  const [assigneeFilter, setAssigneeFilter] = useState(searchParams.get("assignee") || "all");
   const [sortColumn, setSortColumn] = useState<SortColumn>(
     (searchParams.get("sort") as SortColumn) ?? "raised"
   );
@@ -58,6 +69,11 @@ export function IncidentsView() {
 
   const [incidents, setIncidents] = useState<IncidentListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Case summaries joined onto the list. A failed case request keeps the last
+  // known data (or none, which reads as every incident Open) without an error banner.
+  const [cases, setCases] = useState<CaseSummary[] | null>(null);
+  const [casesUnavailable, setCasesUnavailable] = useState(false);
+  const [assigneeNames, setAssigneeNames] = useState<string[]>([]);
 
   // Guard against double-fire navigation when pressing Enter/Space or clicking
   const isNavigatingRef = useRef(false);
@@ -68,12 +84,13 @@ export function IncidentsView() {
     if (severity) params.set("severity", severity);
     if (search) params.set("search", search);
     if (technique) params.set("technique", technique);
-    if (status) params.set("status", status);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (assigneeFilter !== "all") params.set("assignee", assigneeFilter);
     if (sortColumn !== "raised") params.set("sort", sortColumn);
     if (sortDirection !== "desc") params.set("order", sortDirection);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [severity, search, technique, status, sortColumn, sortDirection, pathname, router]);
+  }, [severity, search, technique, statusFilter, assigneeFilter, sortColumn, sortDirection, pathname, router]);
 
   // Returns true on success, false on a network error or any non-2xx answer
   // (including 503 backend_unavailable), so the poll below can back off.
@@ -83,11 +100,29 @@ export function IncidentsView() {
       if (severity) params.set("severity", severity);
 
       try {
-        const res = await fetch(`/api/incidents?${params.toString()}`, { signal });
+        const [res, casesRes] = await Promise.all([
+          fetch(`/api/incidents?${params.toString()}`, { signal }),
+          fetch("/api/cases", { signal, cache: "no-store" }).catch(() => null),
+        ]);
         if (!res.ok) throw new Error(`status ${res.status}`);
         const body = await res.json();
+        let caseList: CaseSummary[] | null = null;
+        if (casesRes && casesRes.ok) {
+          try {
+            const parsed: unknown = await casesRes.json();
+            if (Array.isArray(parsed)) caseList = parsed as CaseSummary[];
+          } catch {
+            caseList = null;
+          }
+        }
         if (isCancelled()) return false;
         setIncidents(body);
+        if (caseList) {
+          setCases(caseList);
+          setCasesUnavailable(false);
+        } else {
+          setCasesUnavailable(true);
+        }
         setError(null);
         return true;
       } catch {
@@ -149,6 +184,35 @@ export function IncidentsView() {
     };
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/cases/assignees", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("status"))))
+      .then((list: unknown) => {
+        if (cancelled || !Array.isArray(list)) return;
+        setAssigneeNames(list.filter((n): n is string => typeof n === "string" && n !== "Unassigned"));
+      })
+      .catch(() => {
+        // the filter falls back to the names seen in the case data
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const assigneeOptions = useMemo(() => {
+    const names = new Set(assigneeNames);
+    for (const c of cases ?? []) if (c.assignee) names.add(c.assignee);
+    if (assigneeFilter !== "all" && assigneeFilter !== "unassigned") names.add(assigneeFilter);
+    return Array.from(names);
+  }, [assigneeNames, cases, assigneeFilter]);
+
+  const caseById = useMemo(() => new Map((cases ?? []).map((c) => [c.incident_id, c])), [cases]);
+  const caseOf = useCallback(
+    (incidentId: string) => caseById.get(incidentId) ?? effectiveCase(incidentId, null),
+    [caseById]
+  );
+
   // Dynamically extract distinct techniques and tactics from current incidents
   const allTechniquesAndTactics = useMemo(() => {
     const set = new Set<string>();
@@ -164,18 +228,17 @@ export function IncidentsView() {
   }, [incidents]);
 
   // Filtering:
-  // 1. "Status: open" explicitly uses deriveIncidentStatus heuristic from @/lib/incidents:
-  //    In this system, there is no real case-status field in the incident data contract (see docs/person_b.md).
-  //    An incident is considered "open" if its response hasn't completed (deriveIncidentStatus !== "resolved", or isOpenIncident).
+  // 1. Status and assignee filters use the real case data (lib/caseJoin.ts); an
+  //    incident with no stored case is Open and unassigned.
   // 2. Search matches host, user, OR scenario.
   // 3. Technique / tactic matches techniques or tactics arrays.
   const filteredIncidents = useMemo(() => {
     let list = incidents;
 
-    if (status === "open") {
+    if (statusFilter !== "all" || assigneeFilter !== "all") {
       list = list.filter((inc) => {
-        const history = inc.last_response_action ? [inc.last_response_action] : [];
-        return deriveIncidentStatus(history) !== "resolved" || isOpenIncident(inc);
+        const c = caseOf(inc.incident_id);
+        return matchesStatusFilter(c.status, statusFilter) && assigneeFilterMatches(c.assignee, assigneeFilter);
       });
     }
 
@@ -200,7 +263,7 @@ export function IncidentsView() {
     }
 
     return list;
-  }, [incidents, status, search, technique]);
+  }, [incidents, statusFilter, assigneeFilter, caseOf, search, technique]);
 
   // Sorting
   const sortedIncidents = useMemo(() => {
@@ -223,10 +286,21 @@ export function IncidentsView() {
           diff = (a.alert_ids?.length ?? 0) - (b.alert_ids?.length ?? 0);
           break;
         case "raised":
-          diff = (a.incident_raised_time || "").localeCompare(b.incident_raised_time || "");
+          // the real timestamp, not the text
+          diff = (Date.parse(a.incident_raised_time) || 0) - (Date.parse(b.incident_raised_time) || 0);
           break;
         case "triage":
           diff = (a.triage_verdict || "").localeCompare(b.triage_verdict || "");
+          break;
+        case "status": {
+          const weight = { open: 0, investigating: 1, resolved: 2 };
+          diff =
+            weight[normalizeStatus(caseOf(a.incident_id).status)] -
+            weight[normalizeStatus(caseOf(b.incident_id).status)];
+          break;
+        }
+        case "assignee":
+          diff = (caseOf(a.incident_id).assignee || "").localeCompare(caseOf(b.incident_id).assignee || "");
           break;
         case "last_action": {
           const actA = a.last_response_action
@@ -241,7 +315,7 @@ export function IncidentsView() {
       }
       return sortDirection === "asc" ? diff : -diff;
     });
-  }, [filteredIncidents, sortColumn, sortDirection]);
+  }, [filteredIncidents, sortColumn, sortDirection, caseOf]);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -318,34 +392,26 @@ export function IncidentsView() {
         search={search}
         techniqueOrTactic={technique}
         techniquesAndTactics={allTechniquesAndTactics}
+        statusFilter={statusFilter}
+        assigneeFilter={assigneeFilter}
+        assigneeNames={assigneeOptions}
         onSeverityChange={setSeverity}
         onSearchChange={setSearch}
         onTechniqueOrTacticChange={setTechnique}
+        onStatusFilterChange={(value) => setStatusFilter(parseStatusFilter(value))}
+        onAssigneeFilterChange={setAssigneeFilter}
       />
-
-      {status === "open" && (
-        <div className="mb-3 flex items-center gap-2 text-sm">
-          {/* Explicitly uses deriveIncidentStatus heuristic from @/lib/incidents:
-              In this system, there is no real case-status field in the incident data contract (see docs/person_b.md).
-              An incident is considered "open" if its response hasn't completed (deriveIncidentStatus !== "resolved", or isOpenIncident). */}
-          <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-            Status: open
-            <button
-              onClick={() => setStatus("")}
-              aria-label="Clear status filter"
-              className="ml-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-            >
-              ×
-            </button>
-          </span>
-        </div>
-      )}
 
       {/* Showing N of M incidents count header */}
       <div className="mb-3 flex items-center justify-between text-xs font-medium text-zinc-500 dark:text-zinc-400">
         <span>
           Showing {sortedIncidents.length} of {incidents.length} incidents
         </span>
+        {casesUnavailable && (
+          <span className="font-normal text-ink-subtle" data-testid="cases-unavailable">
+            Case data unavailable
+          </span>
+        )}
       </div>
 
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
@@ -401,6 +467,7 @@ export function IncidentsView() {
                 </div>
               </th>
               <th
+                title={`Times are shown in ${tzLabel()}`}
                 onClick={() => handleSort("raised")}
                 className="group/col cursor-pointer select-none py-1.5 pr-4 text-right font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
               >
@@ -419,8 +486,26 @@ export function IncidentsView() {
                 </div>
               </th>
               <th
-                onClick={() => handleSort("last_action")}
+                onClick={() => handleSort("status")}
                 className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+              >
+                <div className="flex items-center">
+                  <span>Status</span>
+                  {renderSortIndicator("status")}
+                </div>
+              </th>
+              <th
+                onClick={() => handleSort("assignee")}
+                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+              >
+                <div className="flex items-center">
+                  <span>Assignee</span>
+                  {renderSortIndicator("assignee")}
+                </div>
+              </th>
+              <th
+                onClick={() => handleSort("last_action")}
+                className="hidden xl:table-cell group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
               >
                 <div className="flex items-center">
                   <span>Last action</span>
@@ -435,9 +520,11 @@ export function IncidentsView() {
               const fullAction = incident.last_response_action
                 ? describeResponseAction(incident.last_response_action)
                 : "None yet";
+              const caseInfo = caseOf(incident.incident_id);
               return (
                 <tr
                   key={incident.incident_id}
+                  data-incident-id={incident.incident_id}
                   onClick={(e) => handleRowClick(e, incident.incident_id)}
                   onAuxClick={(e) => handleRowAuxClick(e, incident.incident_id)}
                   tabIndex={0}
@@ -454,7 +541,7 @@ export function IncidentsView() {
                     {incident.user}
                   </td>
                   <td
-                    className="py-2 pr-4 text-xs text-zinc-600 dark:text-zinc-400"
+                    className="whitespace-nowrap py-2 pr-4 text-xs text-zinc-600 dark:text-zinc-400"
                     title={incident.matched_scenario ?? undefined}
                   >
                     {incident.matched_scenario ? humanizeScenario(incident.matched_scenario) : "—"}
@@ -464,13 +551,26 @@ export function IncidentsView() {
                       {incident.alert_ids?.length ?? 0}
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-right text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                    {incident.incident_raised_time}
+                  <td
+                    className="py-2 pr-4 text-right text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap"
+                    title={formatUtc(incident.incident_raised_time)}
+                  >
+                    {formatDateTime(incident.incident_raised_time)}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td className="whitespace-nowrap py-2 pr-4">
                     <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} className="-my-0.5" />
                   </td>
-                  <td className="py-2 pr-4 max-w-[200px]">
+                  <td className="py-2 pr-4" data-testid="cell-status">
+                    <StatusBadge status={normalizeStatus(caseInfo.status)} />
+                  </td>
+                  <td className="py-2 pr-4" data-testid="cell-assignee">
+                    {caseInfo.assignee ? (
+                      <span className="text-zinc-600 dark:text-zinc-400">{caseInfo.assignee}</span>
+                    ) : (
+                      <span className="text-ink-subtle">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="hidden py-2 pr-4 max-w-[200px] xl:table-cell">
                     <span
                       className="block truncate text-zinc-600 dark:text-zinc-400"
                       title={fullAction}
@@ -499,7 +599,7 @@ export function IncidentsView() {
             })}
             {sortedIncidents.length === 0 && !error && (
               <tr>
-                <td colSpan={9} className="py-8 text-center text-zinc-500">
+                <td colSpan={11} className="py-8 text-center text-zinc-500">
                   No incidents match the selected filters.
                 </td>
               </tr>
@@ -514,6 +614,7 @@ export function IncidentsView() {
           const fullAction = incident.last_response_action
             ? describeResponseAction(incident.last_response_action)
             : "None yet";
+          const caseInfo = caseOf(incident.incident_id);
           return (
             <div
               key={incident.incident_id}
@@ -527,6 +628,7 @@ export function IncidentsView() {
                 <div className="flex items-center gap-2">
                   <SeverityBadge severity={incident.severity} />
                   <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} />
+                  <StatusBadge status={normalizeStatus(caseInfo.status)} />
                 </div>
                 <span
                   aria-hidden="true"
@@ -548,6 +650,7 @@ export function IncidentsView() {
                 {incident.host} <span className="font-normal text-zinc-400 dark:text-zinc-500">•</span>{" "}
                 {incident.user}
               </div>
+              <div className="mb-1 text-xs text-ink-subtle">Assignee: {caseInfo.assignee ?? "Unassigned"}</div>
 
               <div
                 className="mb-2 text-xs text-zinc-600 dark:text-zinc-400"
@@ -557,7 +660,9 @@ export function IncidentsView() {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-500 dark:border-zinc-800/80 dark:text-zinc-400">
-                <span className="whitespace-nowrap">{incident.incident_raised_time}</span>
+                <span className="whitespace-nowrap" title={formatUtc(incident.incident_raised_time)}>
+                  {formatDateTime(incident.incident_raised_time)}
+                </span>
                 <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                   {incident.alert_ids?.length ?? 0} alert
                   {(incident.alert_ids?.length ?? 0) === 1 ? "" : "s"}

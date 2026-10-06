@@ -9,6 +9,8 @@ import { defineConfig } from "@playwright/test";
 // when running the tests) and a fixed session secret that exists only here.
 export const E2E_SESSION_SECRET = "e2e-only-session-secret-not-for-real-use-0123456789";
 export const E2E_AUTH_STATE = path.join(os.tmpdir(), "csa-ops-e2e-auth.json");
+// Where the backend started by this config keeps cases.json, so case tests never touch the repo's data/.
+export const E2E_DATA_ROOT = path.join(os.tmpdir(), "csa-ops-e2e-data");
 
 // Same scrypt parameters as scripts/hash-password.mjs.
 export function scryptHash(password: string): string {
@@ -29,6 +31,8 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  workers: 2,
+  expect: { timeout: 10_000 },
   globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL: "http://localhost:3000",
@@ -41,7 +45,7 @@ export default defineConfig({
       url: "http://localhost:8000/health",
       reuseExistingServer: true,
       timeout: 60_000,
-      env: { ...env, INTAKE_ENABLED: "false" },
+      env: { ...env, INTAKE_ENABLED: "false", DATA_ROOT: E2E_DATA_ROOT },
     },
     {
       command: "npm run dev",
