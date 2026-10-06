@@ -16,7 +16,9 @@ adds them, this picks them up with zero code change here.
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import Any, Optional
+
+from ..case_text import event_sentence, status_label, verdict_label
 
 _CASE_FIELDS = ("status", "assignee", "resolution", "notes")
 
@@ -378,6 +380,74 @@ def _render_case_details(incident: dict) -> Optional[str]:
     return "\n".join(lines).rstrip()
 
 
+# The activity list shows at most this many events, newest kept: the case's
+# resolution is at the end and matters more than its earliest bookkeeping.
+MAX_CASE_EVENTS = 200
+
+
+def _render_note_block(text: str) -> list[str]:
+    """A note as an indented block quote under its event. Every line goes through
+    the same escaping as other untrusted prose, and a leading block marker is
+    defused so a note cannot open a heading or list inside the quote."""
+    lines = str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    return [f"  > {_escape_leading_block_marker(_escape_md(line))}".rstrip() for line in lines]
+
+
+def _render_case(case: Any) -> Optional[str]:
+    """The "Case" section: status, assignee, verdict and the activity timeline,
+    oldest first. Analyst-written text (actor, assignee, notes) is untrusted and
+    only ever appears escaped. Returns None when no usable case was given."""
+    if not isinstance(case, dict):
+        return None
+
+    raw_events = case.get("events")
+    events = [e for e in raw_events if isinstance(e, dict)] if isinstance(raw_events, list) else []
+    status = case.get("status") or "open"
+
+    if not events and not case.get("version"):
+        # The virtual default: nothing has ever been recorded for this incident.
+        return f"## Case\n\nNo analyst activity recorded. Status: {_escape_md(status_label(status))}."
+
+    assignee = case.get("assignee")
+    lines = [
+        "## Case",
+        "",
+        f"**Status:** {_escape_md(status_label(status))}  ",
+        f"**Assignee:** {_escape_md(assignee) if isinstance(assignee, str) and assignee.strip() else 'Unassigned'}  ",
+    ]
+    if status == "resolved":
+        lines.append(f"**Verdict:** {_escape_md(verdict_label(case.get('verdict')))}  ")
+        note = case.get("resolution_note")
+        if isinstance(note, str) and note.strip():
+            lines.append(f"**Resolution note:** {_escape_md(note)}  ")
+        if case.get("resolved_time"):
+            lines.append(f"**Resolved time:** {_escape_md(case.get('resolved_time'))}  ")
+    lines[-1] = lines[-1].rstrip()
+
+    ordered = sorted(events, key=lambda e: str(e.get("time") or ""))
+    omitted = max(0, len(ordered) - MAX_CASE_EVENTS)
+    shown = ordered[omitted:]
+
+    lines += ["", "### Case activity", ""]
+    if not shown:
+        lines.append("_No activity recorded._")
+    for event in shown:
+        when = _escape_md(event.get("time")) or "unknown time"
+        lines.append(f"- {when} | {_escape_md(event_sentence(event))}")
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        text = None
+        if event.get("type") == "note_added":
+            text = data.get("text")
+        elif event.get("type") == "resolved":
+            text = data.get("note")
+        if isinstance(text, str) and text.strip():
+            lines.extend(_render_note_block(text))
+    if omitted:
+        noun = "event" if omitted == 1 else "events"
+        lines += ["", f"_{omitted} older {noun} omitted._"]
+    return "\n".join(lines)
+
+
 def _render_footer(generated_time: str, incident: dict) -> str:
     lines = ["---", "", f"_Report generated {generated_time} by CSA-OPS._"]
     if incident.get("is_replay"):
@@ -392,7 +462,11 @@ def build_incident_report_markdown(
     response_history: list[dict],
     rule_titles: dict[str, str],
     generated_time: str,
+    case: Optional[dict] = None,
 ) -> str:
+    """case, when given, is a dict shaped like backend.app.models.case.Case (the
+    virtual default included); the report then gets a "Case" section. With
+    case=None the output is exactly what it was before cases existed."""
     sections = [
         _render_header(incident, rule_titles),
         _render_attack_chain(incident, rule_titles),
@@ -401,6 +475,10 @@ def build_incident_report_markdown(
         _render_ai_triage(triage),
         _render_response_actions(response_history),
     ]
+
+    case_section = _render_case(case)
+    if case_section:
+        sections.append(case_section)
 
     case_details = _render_case_details(incident)
     if case_details:

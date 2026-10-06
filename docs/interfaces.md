@@ -263,6 +263,30 @@ POST  /incidents/inc-1006/case/notes  {"text": "Word spawned PowerShell; checkin
 POST  /incidents/inc-1006/case/resolve {"verdict": "true_positive", "note": "Confirmed phishing document."}
 ```
 
+### Case metrics and the report's Case section
+
+`GET /metrics/cases?range=` (dashboard key) returns `{range, since, as_of,
+status_counts, ai_agreement, resolve_time, verdicts_by_rule}`, each wrapped as
+`{value, status}` like the other metrics (`status`: `ok` or `no_data`). Shapes:
+
+```
+status_counts     {open, investigating, resolved}
+ai_agreement      {resolved_total, scored, agree, disagree, ai_uncertain, unscored,
+                   confusion: {ai_malicious_analyst_malicious, ai_malicious_analyst_benign,
+                               ai_benign_analyst_malicious, ai_benign_analyst_benign}}
+resolve_time      {count, median_seconds, p90_seconds, values_seconds}   (null values when count is 0)
+verdicts_by_rule  {<rule_id>: {true_positive, false_positive, benign_activity, undetermined, total}}
+```
+
+Incidents are scoped by `incident_raised_time`, like every other metric. The
+definitions (sides, what counts as scored, resolve time) are in `docs/cases.md`.
+Read-only: it never writes `cases.json` and nothing in `engine/` imports it.
+
+`GET /incidents/{id}/report` adds a "Case" section (status, assignee, verdict,
+resolution note, activity oldest first) after Response actions. `include_case=false`
+omits it. Reading the case never writes, and an unreadable case file means no
+Case section, not a failed export.
+
 ## Metrics
 
 The metrics page (`GET /metrics/*`, `dashboard/app/metrics`) reads a subset

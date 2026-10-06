@@ -2,26 +2,27 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { AttackChainCard } from "@/components/chain/AttackChainCard";
+import { CaseActivity } from "@/components/case/CaseActivity";
+import { CaseCard } from "@/components/case/CaseCard";
+import { CaseAssigneeProperty, CaseStatusProperty } from "@/components/case/CaseHeaderProperties";
+import { CaseProvider } from "@/components/case/CaseProvider";
 import { EventTimeline } from "@/components/EventTimeline";
 import { ExplainPanel } from "@/components/ExplainPanel";
 import { ExportReportDropdown } from "@/components/ExportReportDropdown";
 import { ResponseHistoryPanel } from "@/components/ResponseHistoryPanel";
 import { SeverityBadge } from "@/components/SeverityBadge";
-import { StatusBadge } from "@/components/StatusBadge";
 import { TriagePanel } from "@/components/TriagePanel";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/ui/KeyValueList";
 import { PropertyBar } from "@/components/ui/PropertyBar";
 import { Time } from "@/components/ui/Time";
-import { Tooltip } from "@/components/ui/Tooltip";
 import { backendFetch } from "@/lib/api";
 import {
   incidentTitle,
   humanizeScenario,
   humanizeTactic,
 } from "@/lib/incidentDisplay";
-import { deriveIncidentStatus } from "@/lib/incidents";
 import { tzLabel } from "@/lib/time";
 import type { Graph, IncidentDetail } from "@/lib/types";
 
@@ -46,8 +47,6 @@ export default async function IncidentPage({ params }: { params: { id: string } 
   const [incident, graph] = await Promise.all([getIncident(params.id), getGraph(params.id)]);
   if (!incident) notFound();
 
-  const status = deriveIncidentStatus(incident.response_history ?? []);
-
   // Graph nodes carry rule_title and is_trigger but no timestamp; the chain
   // nodes carry the timestamp. Join them so the title can use the earliest hit.
   const chainTimes = new Map(incident.chain.nodes.map((n) => [n.event_id, n.timestamp ?? null]));
@@ -59,6 +58,7 @@ export default async function IncidentPage({ params }: { params: { id: string } 
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-6">
+      <CaseProvider incidentId={incident.incident_id}>
       {/* Top back link & export report */}
       <div className="flex items-center justify-between gap-4">
         <a
@@ -81,7 +81,7 @@ export default async function IncidentPage({ params }: { params: { id: string } 
         </span>
       </div>
 
-      {/* Property bar: Severity, Status, Host, User, Raised only */}
+      {/* Property bar: Severity, Status, Assignee, Host, User, Raised */}
       <div className="mt-4 pb-4 border-b border-line">
         <PropertyBar
           items={[
@@ -91,13 +91,11 @@ export default async function IncidentPage({ params }: { params: { id: string } 
             },
             {
               label: "Status",
-              value: (
-                <Tooltip content="Derived from the latest response action. Case status isn't tracked yet.">
-                  <span tabIndex={0} className="inline-flex cursor-help">
-                    <StatusBadge status={status} />
-                  </span>
-                </Tooltip>
-              ),
+              value: <CaseStatusProperty />,
+            },
+            {
+              label: "Assignee",
+              value: <CaseAssigneeProperty />,
             },
             {
               label: "Host",
@@ -126,6 +124,8 @@ export default async function IncidentPage({ params }: { params: { id: string } 
         <div className="space-y-6 min-w-0">
           <TriagePanel triage={incident.triage} />
 
+          <CaseActivity />
+
           <AttackChainCard graph={graph} chainNodes={incident.chain.nodes} />
 
           <Card>
@@ -140,6 +140,9 @@ export default async function IncidentPage({ params }: { params: { id: string } 
 
         {/* Right rail: sticky with max-height and overflow scroll */}
         <div className="space-y-6 min-w-0 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+          {/* 0. Case: status, assignee, resolve and reopen (first card in the rail) */}
+          <CaseCard />
+
           {/* 1. Details: Scenario, Alerts, Risk score, Tactics, Techniques only */}
           <Card>
             <CardHeader title="Details" />
@@ -148,7 +151,11 @@ export default async function IncidentPage({ params }: { params: { id: string } 
                 items={[
                   {
                     label: "Scenario",
-                    value: humanizeScenario(incident.matched_scenario),
+                    value: incident.matched_scenario ? (
+                      humanizeScenario(incident.matched_scenario)
+                    ) : (
+                      <span className="text-ink-subtle">Not classified</span>
+                    ),
                   },
                   {
                     label: "Alerts",
@@ -247,6 +254,7 @@ export default async function IncidentPage({ params }: { params: { id: string } 
           <ResponseHistoryPanel history={incident.response_history ?? []} />
         </div>
       </div>
+      </CaseProvider>
     </main>
   );
 }

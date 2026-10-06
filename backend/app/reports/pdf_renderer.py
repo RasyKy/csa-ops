@@ -216,6 +216,33 @@ hr {
   color: #6b7280;
   margin-top: 12px;
 }
+
+/* Case section: analyst-written text can be long and unbroken, so everything
+   in it wraps instead of running off the page. */
+.case-section, .case-section * {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+ul.case-activity {
+  margin: 6px 0 10px 0;
+  padding-left: 20px;
+}
+
+ul.case-activity > li {
+  margin-bottom: 6px;
+  break-inside: avoid;
+}
+
+.case-note {
+  margin: 4px 0 2px 0;
+  padding: 4px 10px;
+  border-left: 3px solid #d1d5db;
+  background-color: #f9fafb;
+  color: #374151;
+  font-size: 12px;
+}
 """
 
 _CODE_SPAN_RE = re.compile(r"(`+)(.*?)\1", re.DOTALL)
@@ -545,6 +572,72 @@ def _render_case_details_section(section_md: str) -> str:
     return "\n".join(body)
 
 
+_ESCAPED_BACKTICK = "\ue000"
+
+
+def _render_case_inline(text: str) -> str:
+    """Inline rendering for the case section. All analyst text in it arrives
+    with its backticks backslash-escaped and there are no real code spans, so an
+    escaped backtick must not be read as the start of one."""
+    return _render_inline(text.replace("\\`", _ESCAPED_BACKTICK)).replace(_ESCAPED_BACKTICK, "`")
+
+
+def _render_case_section(section_md: str) -> str:
+    """The "Case" section: header lines, then the activity list with each note
+    as a quote under its event. Mirrors _render_case in incident_report.py."""
+    lines = section_md.splitlines()
+    body: List[str] = ['<section class="report-section case-section">', '  <h2>Case</h2>']
+    meta: List[str] = []
+    events: List[Tuple[str, List[str]]] = []
+    trailing: List[str] = []
+    prose: List[str] = []
+    in_activity = False
+
+    for line in lines[1:]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("### "):
+            in_activity = True
+            continue
+        if in_activity and line.startswith("- "):
+            events.append((line[2:].strip(), []))
+            continue
+        if in_activity and events and line.startswith("  >"):
+            events[-1][1].append(stripped[1:].strip())
+            continue
+        if in_activity:
+            trailing.append(stripped)
+        elif stripped.startswith("**"):
+            meta.append(stripped)
+        else:
+            prose.append(stripped)
+
+    for text in prose:
+        body.append(f'  <p class="empty-state">{_render_case_inline(text)}</p>')
+    if meta:
+        body.append('  <div class="header-meta">')
+        for item in meta:
+            body.append(f'    <div class="header-meta-item">{_render_case_inline(item)}</div>')
+        body.append('  </div>')
+    if in_activity:
+        body.append('  <h3>Case activity</h3>')
+    if events:
+        body.append('  <ul class="case-activity">')
+        for sentence, notes in events:
+            body.append('    <li>')
+            body.append(f'      <div class="case-event">{_render_case_inline(sentence)}</div>')
+            if notes:
+                joined = "<br>".join(_render_case_inline(n) for n in notes)
+                body.append(f'      <div class="case-note">{joined}</div>')
+            body.append('    </li>')
+        body.append('  </ul>')
+    for text in trailing:
+        body.append(f'  <p class="empty-state">{_render_case_inline(text)}</p>')
+    body.append('</section>')
+    return "\n".join(body)
+
+
 def _render_footer_section(section_md: str) -> str:
     lines = section_md.splitlines()
     body: List[str] = ['<footer class="report-footer">', '  <hr>']
@@ -596,6 +689,8 @@ def report_markdown_to_html(markdown: str) -> str:
             rendered_sections.append(_render_response_actions_section(sec))
         elif sec.startswith("## Case Details"):
             rendered_sections.append(_render_case_details_section(sec))
+        elif re.match(r"## Case(\s|$)", sec):
+            rendered_sections.append(_render_case_section(sec))
         elif sec.startswith("---"):
             rendered_sections.append(_render_footer_section(sec))
         elif sec.startswith("## "):
