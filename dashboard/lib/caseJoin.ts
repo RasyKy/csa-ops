@@ -58,3 +58,44 @@ export function assigneeFilterMatches(assignee: string | null | undefined, filte
   if (filter === "unassigned") return name === null;
   return name === filter;
 }
+
+// --- Reading verdicts. These mirror backend/metrics/case_metrics.py (side_of_ai,
+// side_of_analyst); keep the two in sync if either changes. ---
+
+export type VerdictSide = "malicious" | "benign" | "uncertain";
+
+export function sideOfAi(verdict: unknown): VerdictSide | null {
+  if (verdict === "true_positive" || verdict === "likely_true_positive") return "malicious";
+  if (verdict === "false_positive" || verdict === "likely_false_positive") return "benign";
+  if (verdict === "needs_review") return "uncertain";
+  return null;
+}
+
+// Undetermined, missing and unknown verdicts have no side.
+export function sideOfAnalyst(verdict: unknown): "malicious" | "benign" | null {
+  if (verdict === "true_positive") return "malicious";
+  if (verdict === "false_positive" || verdict === "benign_activity") return "benign";
+  return null;
+}
+
+// True only when both sides are known, the AI is not uncertain, and they differ.
+export function disagrees(aiVerdict: unknown, analystVerdict: unknown): boolean {
+  const ai = sideOfAi(aiVerdict);
+  const analyst = sideOfAnalyst(analystVerdict);
+  return ai !== null && analyst !== null && ai !== "uncertain" && ai !== analyst;
+}
+
+export type VerdictRelation = "no_ai" | "analyst_undetermined" | "ai_uncertain" | "agree" | "disagree";
+
+// How the analyst's verdict relates to the AI's, checked in this order: no AI side
+// (missing, failed or unknown), then no analyst side (undetermined, missing or
+// unknown), then an uncertain AI, then equal sides, otherwise a disagreement.
+// disagrees() is true exactly when this returns "disagree".
+export function verdictRelation(aiVerdict: unknown, analystVerdict: unknown): VerdictRelation {
+  const ai = sideOfAi(aiVerdict);
+  if (ai === null) return "no_ai";
+  const analyst = sideOfAnalyst(analystVerdict);
+  if (analyst === null) return "analyst_undetermined";
+  if (ai === "uncertain") return "ai_uncertain";
+  return ai === analyst ? "agree" : "disagree";
+}

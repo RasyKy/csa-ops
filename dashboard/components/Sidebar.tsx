@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { endClientSession } from "@/lib/clientCache";
+
 import { ThemeToggle } from "./ThemeToggle";
 import { Tooltip } from "./ui/Tooltip";
 
@@ -267,6 +269,8 @@ export function Sidebar() {
   };
 
   const signOut = async () => {
+    // nothing from this session may be shown to the next one
+    endClientSession();
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
@@ -322,6 +326,33 @@ export function Sidebar() {
         })}
       </nav>
 
+      <div data-testid="sidebar-signout-row" className="border-t border-zinc-200 p-2 dark:border-zinc-800">
+        {collapsed ? (
+          <div className="flex justify-center">
+            <Tooltip content="Sign out">
+              <button
+                type="button"
+                onClick={signOut}
+                aria-label="Sign out"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+              >
+                <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
+              </button>
+            </Tooltip>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={signOut}
+            aria-label="Sign out"
+            className="flex w-full min-w-0 items-center gap-3 rounded border-l-2 border-transparent px-2.5 py-2 text-left text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+          >
+            <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span data-sidebar-expanded-only className="truncate">Sign out</span>
+          </button>
+        )}
+      </div>
+
       {collapsed ? (
         <div className="sidebar-footer flex flex-col items-center gap-2 border-t border-zinc-200 p-2 dark:border-zinc-800">
           <ThemeToggle
@@ -338,37 +369,17 @@ export function Sidebar() {
           >
             <ChevronIcon collapsed={true} className="chevron-icon h-[18px] w-[18px]" />
           </button>
-          <Tooltip content="Sign out">
-            <button
-              type="button"
-              onClick={signOut}
-              aria-label="Sign out"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100"
-            >
-              <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
-            </button>
-          </Tooltip>
         </div>
       ) : (
         <div className="sidebar-footer flex items-center justify-between gap-2 border-t border-zinc-200 p-2 dark:border-zinc-800">
-          <ThemeToggle className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100" />
-          <Tooltip content="Sign out">
-            <button
-              type="button"
-              onClick={signOut}
-              aria-label="Sign out"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </Tooltip>
+          <ThemeToggle className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100" />
           <button
             type="button"
             onClick={toggle}
             title="Collapse sidebar"
             aria-label="Collapse sidebar"
             aria-expanded={true}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100 max-md:hidden"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:hover:text-zinc-100 max-md:hidden"
           >
             <ChevronIcon collapsed={false} className="chevron-icon" />
           </button>

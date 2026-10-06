@@ -1,6 +1,7 @@
 import React from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { TriageBadge } from "@/components/TriageBadge";
+import { TriageAnalystNote } from "@/components/case/TriageAnalystNote";
 import { Notice } from "@/components/ui/Notice";
 import { Time } from "@/components/ui/Time";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -57,6 +58,8 @@ export function TriagePanel({ triage }: { triage: IncidentTriage | null }) {
             </div>
           </div>
         )}
+
+        <TriageAnalystNote aiVerdict={triage?.status === "ok" ? triage.verdict : null} />
       </CardBody>
     </Card>
   );
