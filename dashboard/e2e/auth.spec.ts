@@ -569,8 +569,13 @@ test.describe("sign in: layout and screenshots", () => {
   test("the sidebar sign out button is present, labeled and keyboard reachable once signed in", async ({ page }) => {
     await useOwnAddress(page);
     await page.request.post("/api/auth/login", { data: { password: PASSWORD } });
+    // The sidebar shows Sign out as a labeled row when expanded and as an icon with a
+    // tooltip when collapsed; the tooltip is what this test checks, so it runs collapsed.
+    await page.addInitScript(() => localStorage.setItem("sidebar-collapsed", "true"));
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
+    // the sidebar renders expanded first and collapses after hydration: wait for that
+    await expect(page.locator('aside button[aria-label="Expand sidebar"]')).toBeVisible();
     const button = page.locator("aside").getByRole("button", { name: "Sign out" });
     await expect(button).toBeVisible();
     const box = await button.boundingBox();

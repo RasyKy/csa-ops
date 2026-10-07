@@ -2,11 +2,12 @@ import Link from "next/link";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TriageBadge } from "@/components/TriageBadge";
-import { humanizeScenario } from "@/lib/incidentDisplay";
+import { incidentListTitle, incidentMeta } from "@/lib/incidentListTitle";
 import { effectiveCase, isUnresolved } from "@/lib/caseJoin";
 import { medianResolveText, statusCountsText } from "@/lib/caseMetricsDisplay";
 import { isOpenIncident } from "@/lib/incidents";
 import { SEVERITY_HEX, SEVERITY_ORDER } from "@/lib/severity";
+import { useAlertTitles } from "@/lib/useAlertTitles";
 import type { CaseSummary, IncidentListItem, MetricsCases, MetricsResponse } from "@/lib/types";
 import { AutomatedResponseStatus } from "./AutomatedResponseStatus";
 import { InfoTooltip } from "./InfoTooltip";
@@ -64,6 +65,29 @@ function OpenIncidentsCard({
   );
 }
 
+// Two lines: the incident title and "<host> · <user> · <n> alerts". Same helpers as
+// the Incidents list, so the two never name an incident differently.
+function IncidentCell({
+  incident,
+  alertTitles,
+}: {
+  incident: IncidentListItem;
+  alertTitles: Parameters<typeof incidentListTitle>[1];
+}) {
+  const title = incidentListTitle(incident, alertTitles);
+  const meta = incidentMeta(incident.host, incident.user, incident.alert_ids?.length ?? 0);
+  return (
+    <span className="min-w-0">
+      <span className="block truncate text-sm font-medium text-ink" title={title} data-testid="newest-incident-title">
+        {title}
+      </span>
+      <span className="block truncate text-xs text-ink-muted" title={meta} data-testid="newest-incident-meta">
+        {meta}
+      </span>
+    </span>
+  );
+}
+
 // The page's first section, per the "what needs my attention right now"
 // brief: open-incident volume, the single most important safety fact
 // (automated response status -- see AutomatedResponseStatus), and the
@@ -82,6 +106,10 @@ export function NeedsAttention({
   cases?: CaseSummary[] | null;
   caseMetrics?: MetricsCases | null;
 }) {
+  // Rule titles name incidents that have no matched scenario; until they arrive the
+  // title falls back to the technique, with no error state.
+  const alertTitles = useAlertTitles();
+
   // Unresolved means the case is open or investigating; with no case data every
   // incident counts as open.
   const openIncidents = incidents?.filter((i) => isUnresolved(effectiveCase(i.incident_id, cases).status)) ?? null;
@@ -121,20 +149,17 @@ export function NeedsAttention({
               <li key={incident.incident_id} className="border-t border-line first:border-t-0">
                 <Link
                   href={`/incidents/${incident.incident_id}`}
-                  className="grid grid-cols-[72px_88px_128px_1fr_220px] items-center gap-3 px-4 py-2 text-sm hover:bg-surface-subtle"
+                  className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2 text-sm hover:bg-surface-subtle"
                 >
                   <SeverityBadge severity={incident.severity} />
-                  <span className="truncate" title={incident.host}>
-                    {incident.host}
-                  </span>
-                  <span className="truncate text-zinc-500" title={incident.user}>
-                    {incident.user}
-                  </span>
-                  <span className="truncate text-zinc-500" title={incident.matched_scenario ?? undefined}>
-                    {incident.matched_scenario ? humanizeScenario(incident.matched_scenario) : "-"}
-                  </span>
+                  <IncidentCell incident={incident} alertTitles={alertTitles} />
                   <span className="justify-self-end whitespace-nowrap">
-                    <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} prefix="AI:" />
+                    <TriageBadge
+                      verdict={incident.triage_verdict}
+                      status={incident.triage_status}
+                      showSourceTag
+                      tooltipAlign="end"
+                    />
                   </span>
                 </Link>
               </li>

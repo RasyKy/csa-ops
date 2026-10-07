@@ -273,10 +273,10 @@ test.describe("case data on the Incidents list and Overview (default backend, te
     await expect(page.getByTestId("cases-unavailable")).toHaveCount(0);
     await expect(page.getByText("Could not reach the backend.")).toHaveCount(0);
 
-    // the new columns sit before Last action
+    // the list has six columns: Status and Assignee follow Triage
     const headers = await page.locator("thead th").allInnerTexts();
-    expect(headers.map((h) => h.replace(/[▲▼⇅]/g, "").trim()).slice(0, 10)).toEqual([
-      "Severity", "Host", "User", "Scenario", "Alerts", "Raised", "Triage", "Status", "Assignee", "Last action",
+    expect(headers.map((h) => h.replace(/[▲▼⇅]/g, "").trim()).slice(0, 6)).toEqual([
+      "Severity", "Incident", "Raised", "Triage", "Status", "Assignee",
     ]);
     expect(issues()).toEqual([]);
   });
@@ -363,20 +363,20 @@ test.describe("case data on the Incidents list and Overview (default backend, te
     await page.setViewportSize({ width: 1440, height: 900 });
     await openList(page);
 
-    const raisedCells = page.locator("tbody tr[data-incident-id] td:nth-child(6)");
+    const raisedCells = page.locator('tbody tr[data-incident-id] [data-testid="cell-raised"]');
     const texts = await raisedCells.allInnerTexts();
     const titles = await raisedCells.evaluateAll((els) => els.map((e) => e.getAttribute("title") ?? ""));
     expect(texts.length).toBe(5);
     for (const t of texts) {
       expect(t).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
-      expect(t).toMatch(/^\d{2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}$/);
+      expect(t).toMatch(/^\d{2} [A-Z][a-z]{2}, \d{2}:\d{2}$/);
     }
-    for (const t of titles) expect(t).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC$/);
+    for (const t of titles) expect(t).toMatch(/\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC\)$/);
     await expect(page.locator("thead th", { hasText: "Raised" })).toHaveAttribute("title", /^Times are shown in UTC[+-]/);
     await expect(raisedCells.first()).toHaveCSS("text-align", "right");
 
     // newest first by default, oldest first after one click
-    const epoch = (t: string) => Date.parse(t.replace(" UTC", "Z").replace(" ", "T"));
+    const epoch = (t: string) => Date.parse(/\((\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC\)$/.exec(t)![1].replace(" ", "T") + "Z");
     const desc = titles.map(epoch);
     expect([...desc].sort((a, b) => b - a)).toEqual(desc);
     await page.locator("thead th", { hasText: "Raised" }).click();
@@ -402,28 +402,20 @@ test.describe("case data on the Incidents list and Overview (default backend, te
     expect(issues()).toEqual([]);
   });
 
-  test("5f. Last action hides below 1280px before any other column", async ({ page }) => {
+  test("5f. there is no Last action column; the six columns stay visible at every width", async ({ page }) => {
     const issues = trackIssues(page);
     await openList(page);
-    for (const [width, lastActionVisible] of [
-      [1920, true],
-      [1366, true],
-      [1280, true],
-      [1100, false],
-      [900, false],
-    ] as const) {
+    for (const width of [1920, 1366, 1280, 1100, 900]) {
       await page.setViewportSize({ width, height: 900 });
-      const th = page.locator("thead th", { hasText: "Last action" });
-      if (lastActionVisible) await expect(th, `${width}px`).toBeVisible();
-      else await expect(th, `${width}px`).toBeHidden();
-      for (const name of ["Severity", "Host", "User", "Scenario", "Alerts", "Raised", "Triage", "Status", "Assignee"]) {
+      await expect(page.locator("thead th", { hasText: "Last action" }), `${width}px`).toHaveCount(0);
+      for (const name of ["Severity", "Incident", "Raised", "Triage", "Status", "Assignee"]) {
         await expect(page.locator("thead th", { hasText: name }).first(), `${name} at ${width}px`).toBeVisible();
       }
-      // the data cells follow their header
+      // the data cells follow their header: six columns plus the chevron
       const cells = await page.locator("tbody tr[data-incident-id]").first().locator("td").evaluateAll((els) =>
         els.filter((e) => (e as HTMLElement).offsetParent !== null).length,
       );
-      expect(cells, `${width}px visible cells`).toBe(lastActionVisible ? 11 : 10);
+      expect(cells, `${width}px visible cells`).toBe(7);
     }
     expect(issues()).toEqual([]);
   });

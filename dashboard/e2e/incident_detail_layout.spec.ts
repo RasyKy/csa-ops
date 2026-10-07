@@ -287,7 +287,7 @@ test.describe("Incident Detail Layout and Styling", () => {
     });
   }
 
-  // Incidents list row height assertion: 39px at 1440
+  // Incidents list row height assertion: 52px at 1440
   test("incidents list row height assertion at 1440px", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("http://localhost:3000/incidents");
@@ -304,7 +304,7 @@ test.describe("Incident Detail Layout and Styling", () => {
     console.log(`Incidents list row heights at 1440px: ${JSON.stringify(rowHeights)}`);
     expect(rowHeights.length).toBeGreaterThan(0);
     for (const h of rowHeights) {
-      expect(h).toBe(39);
+      expect(h).toBe(52);
     }
   });
 });

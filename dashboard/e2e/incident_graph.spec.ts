@@ -224,6 +224,10 @@ test.describe("Attack chain graph tests", () => {
     expect(await getViewportTransform(page)).toEqual(tBase);
 
     const pane = page.locator(".react-flow__pane");
+    // The graph starts low on this page (the case cards above it add height), so bring
+    // it into view before aiming drags at it; a drag that ends below the viewport
+    // never reaches the pane.
+    await pane.scrollIntoViewIfNeeded();
     const paneBox = await pane.boundingBox();
     const startX = paneBox!.x + 60;
     const startY = paneBox!.y + 60;

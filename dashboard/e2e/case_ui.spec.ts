@@ -110,7 +110,7 @@ async function resolveAs(page: Page, verdictName: string, note = "") {
   const dialog = page.getByRole("dialog", { name: "Resolve case" });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("radio", { name: verdictName }).check();
-  if (note) await dialog.getByLabel("Note").fill(note);
+  if (note) await dialog.getByLabel("Resolution note (optional)").fill(note);
   await dialog.getByRole("button", { name: "Resolve case" }).click();
   await expect(dialog).toBeHidden();
 }
@@ -305,7 +305,7 @@ test.describe("case UI (mutating, default backend with a temp DATA_ROOT)", () =>
     for (const radio of await dialog.getByRole("radio").all()) await expect(radio).not.toBeChecked();
     await dialog.getByRole("radio", { name: "False positive" }).check();
     await expect(dialog.getByRole("button", { name: "Resolve case" })).toBeEnabled();
-    await dialog.getByLabel("Note").fill("Admin script");
+    await dialog.getByLabel("Resolution note (optional)").fill("Admin script");
     await expect(dialog.getByText("12 / 1000")).toBeVisible();
     await dialog.getByRole("button", { name: "Resolve case" }).click();
     await expect(dialog).toBeHidden();
@@ -330,7 +330,7 @@ test.describe("case UI (mutating, default backend with a temp DATA_ROOT)", () =>
     const opener = card(page).getByRole("button", { name: "Resolve", exact: true });
     await opener.click();
     const dialog = page.getByRole("dialog", { name: "Resolve case" });
-    await dialog.getByLabel("Note").fill("x".repeat(1200));
+    await dialog.getByLabel("Resolution note (optional)").fill("x".repeat(1200));
     await expect(dialog.getByText("1000 / 1000")).toBeVisible();
     await page.mouse.click(5, 5);
     await expect(dialog).toBeHidden();
@@ -464,7 +464,7 @@ test.describe("case UI (mutating, default backend with a temp DATA_ROOT)", () =>
     const dialog = page.getByRole("dialog", { name: "Resolve case" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("radio", { name: "False positive" }).check();
-    await dialog.getByLabel("Note").fill("Scheduled admin script.");
+    await dialog.getByLabel("Resolution note (optional)").fill("Scheduled admin script.");
     expectUsable(await shot(dialog, "case-resolve-dialog-light-1440.png"));
     await dialog.getByRole("button", { name: "Resolve case" }).click();
     await expect(dialog).toBeHidden();

@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { handleUnauthorized } from "@/lib/clientCache";
 import { nextDelay } from "@/lib/pollBackoff";
+import { useSwrState } from "@/lib/useSwrState";
 
+import { RefreshIndicator } from "@/components/RefreshIndicator";
 import { AlertsTimeseriesChart } from "@/components/metrics/AlertsTimeseriesChart";
 import { DataSourcesIndicator } from "@/components/metrics/DataSourcesIndicator";
 import { DetectionQualityPanel } from "@/components/metrics/DetectionQualityPanel";
@@ -70,13 +73,15 @@ const EMPTY_STATE: PageState = {
 
 export default function OverviewPage() {
   const [range, setRange] = useState<MetricsRange>("7d");
-  const [data, setData] = useState<PageState>(EMPTY_STATE);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // Keyed by range: a revisit renders the last data for that range at once and the
+  // poll below revalidates it in the background.
+  const { data, setData, fetchedAt, refreshing, setRefreshing } = useSwrState<PageState>(`overview:${range}`, EMPTY_STATE);
   const [error, setError] = useState<string | null>(null);
 
   // Returns true on success, false on any network or non-2xx error.
   const load = useCallback(async (isCancelled: () => boolean, signal: AbortSignal): Promise<boolean> => {
     const qs = `?range=${range}`;
+    setRefreshing(true);
     const since = sinceForRange(range);
     const incidentsQs = new URLSearchParams({ limit: String(INCIDENTS_FETCH_LIMIT), ...(since ? { since } : {}) });
     try {
@@ -94,6 +99,11 @@ export default function OverviewPage() {
         fetch(`/api/metrics/pipeline`, { signal }),
         fetch(`/api/incidents?${incidentsQs.toString()}`, { signal }),
       ]);
+      // A 401 means the session is gone: forget the cache and go to sign-in.
+      if (responses.some((r) => r.status === 401)) {
+        if (!isCancelled()) handleUnauthorized();
+        return false;
+      }
       // Count any non-2xx response as a failure so back-off activates.
       if (responses.some((r) => !r.ok)) {
         if (isCancelled()) return false;
@@ -124,15 +134,17 @@ export default function OverviewPage() {
       }
       if (isCancelled()) return false;
       setData({ summary, timeseries, top, mitre, response, triage, pipeline, incidents, cases, caseMetrics } as PageState);
-      setLastUpdated(new Date());
       setError(null);
       return true;
     } catch {
       if (isCancelled()) return false;
       setError("Could not reach the backend.");
       return false;
+    } finally {
+      // a superseded run must not clear the flag of the run that replaced it
+      if (!isCancelled()) setRefreshing(false);
     }
-  }, [range]);
+  }, [range, setData, setRefreshing]);
 
   useEffect(() => {
     // Effect-scoped locals -- no useRef needed (same pattern as BackendWakeBanner).
@@ -186,8 +198,8 @@ export default function OverviewPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // Show loading state immediately on range change, not stale data.
-    setData(EMPTY_STATE);
+    // On a range change the page already shows that range's cached data, or the
+    // loading state when there is none (useSwrState); the poll starts at once.
     void runPoll();
 
     return () => {
@@ -210,10 +222,18 @@ export default function OverviewPage() {
     <main className="mx-auto max-w-6xl p-6">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Overview</h1>
+        <RefreshIndicator
+          className="flex-1"
+          refreshing={refreshing}
+          fetchedAt={fetchedAt}
+          failed={error !== null}
+          pollMs={POLL_BASE_MS}
+        />
         <DataSourcesIndicator summary={data.summary} mitre={data.mitre} pipeline={data.pipeline} />
       </div>
-      <RangeSelector range={range} onRangeChange={setRange} lastUpdated={lastUpdated} />
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      <RangeSelector range={range} onRangeChange={setRange} lastUpdated={fetchedAt === null ? null : new Date(fetchedAt)} />
+      {/* With data on screen a failed refresh is only the quiet note above. */}
+      {error && fetchedAt === null && <p className="mb-4 text-sm text-red-600">{error}</p>}
       {rangeIsEmpty && <EmptyRangeBanner range={range} onSwitchToAll={() => setRange("all")} />}
 
       {/* Layout is identical across every range: sections always render in

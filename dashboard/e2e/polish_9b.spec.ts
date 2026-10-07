@@ -191,7 +191,7 @@ test.describe("display polish: default backend", () => {
     const text = await card.innerText();
     expect(text).not.toContain("_");
     const cell = card.getByText("Credential dump chain", { exact: true });
-    await expect(cell).toHaveAttribute("title", "credential_dump_chain");
+    await expect(cell).toHaveAttribute("title", "Credential dump chain");
     expect(issues).toEqual([]);
   });
 
@@ -204,7 +204,7 @@ test.describe("display polish: default backend", () => {
     expect(await table.locator("tbody").innerText()).not.toContain("_chain");
     await expect(table.getByText("Credential dump chain", { exact: true })).toHaveAttribute(
       "title",
-      "credential_dump_chain",
+      "Credential dump chain",
     );
 
     const search = page.getByRole("searchbox").or(page.getByPlaceholder(/search/i)).first();

@@ -9,6 +9,8 @@ import type { Verdict } from "@/lib/types";
 import type { MutationResult } from "./useCase";
 
 const NOTE_MAX = 1000;
+const NOTE_HELP = "Why did you reach this verdict? It appears in the case activity and in the incident report.";
+const NOTE_HINT = "Saying why helps tune the detection rule.";
 
 export function ResolveDialog({
   open,
@@ -26,6 +28,8 @@ export function ResolveDialog({
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const uid = useId();
+  // A verdict that says the detection fired for nothing is the useful case to explain.
+  const showHint = verdict === "false_positive" || verdict === "benign_activity";
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -105,10 +109,11 @@ export function ResolveDialog({
         </div>
 
         <label htmlFor={`${uid}-note`} className="mt-4 block text-sm font-medium text-ink">
-          Note <span className="font-normal text-ink-subtle">(optional)</span>
+          Resolution note <span className="font-normal text-ink-subtle">(optional)</span>
         </label>
         <textarea
           id={`${uid}-note`}
+          aria-describedby={`${uid}-note-help${showHint ? ` ${uid}-note-hint` : ""}`}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={NOTE_MAX}
@@ -116,9 +121,19 @@ export function ResolveDialog({
           disabled={pending}
           className="mt-1 w-full resize-y rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         />
-        <p className="mt-1 text-right text-xs text-ink-subtle" aria-live="off">
-          {note.length} / {NOTE_MAX}
-        </p>
+        <div className="mt-1 flex items-start justify-between gap-3">
+          <p id={`${uid}-note-help`} className="text-xs text-ink-subtle" data-testid="resolve-note-help">
+            {NOTE_HELP}
+          </p>
+          <p className="shrink-0 text-right text-xs text-ink-subtle" aria-live="off">
+            {note.length} / {NOTE_MAX}
+          </p>
+        </div>
+        {showHint && (
+          <p id={`${uid}-note-hint`} className="mt-1 text-xs text-ink-subtle" data-testid="resolve-note-hint">
+            {NOTE_HINT}
+          </p>
+        )}
 
         <p role="alert" className="mt-2 min-h-[1.25rem] text-sm text-red-600 dark:text-red-400">
           {error}

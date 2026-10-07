@@ -64,11 +64,18 @@ export function CaseActivity() {
                       <Time iso={event.time} />
                     </p>
                     {body && (
-                      <div
-                        className="mt-2 whitespace-pre-wrap break-words rounded-md border border-line bg-surface-subtle px-3 py-2 text-sm text-ink"
-                        data-testid="case-event-note"
-                      >
-                        {body}
+                      <div className="mt-2">
+                        {event.type === "resolved" && (
+                          <p className="mb-1 text-xs font-medium text-ink-muted" data-testid="case-event-note-label">
+                            Resolution note
+                          </p>
+                        )}
+                        <div
+                          className="whitespace-pre-wrap break-words rounded-md border border-line bg-surface-subtle px-3 py-2 text-sm text-ink"
+                          data-testid="case-event-note"
+                        >
+                          {body}
+                        </div>
                       </div>
                     )}
                   </div>
