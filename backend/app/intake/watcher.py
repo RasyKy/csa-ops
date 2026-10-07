@@ -36,7 +36,12 @@ class IntakeWatcher:
             # freeze every other request (dashboard polling, health checks,
             # the agent's long-poll) for the duration -- so it runs in a
             # worker thread instead.
-            await loop.run_in_executor(None, self.poll_once)
+            try:
+                await loop.run_in_executor(None, self.poll_once)
+            except Exception:
+                # A store hiccup (e.g. Elasticsearch answering 400/404 while an index is
+                # being recreated) must not end the loop for good; try again next tick.
+                logger.exception("intake poll failed; will retry in %ss", self._poll_seconds)
             try:
                 await asyncio.wait_for(self._stopped.wait(), timeout=self._poll_seconds)
             except asyncio.TimeoutError:

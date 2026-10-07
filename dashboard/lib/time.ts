@@ -133,3 +133,23 @@ export function formatHourMinute(iso: string | null | undefined, timeZone: strin
   }
 }
 
+// "04 Oct, 16:41": day, month and 24 hour time in the display time zone, no year or seconds.
+export function formatShortDateTime(iso: string | null | undefined, timeZone: string = DISPLAY_TZ): string {
+  const d = parseDate(iso);
+  if (!d) return "Unknown";
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      ...(timeZone ? { timeZone } : {}),
+    });
+    const map: Record<string, string> = {};
+    for (const p of dtf.formatToParts(d)) map[p.type] = p.value;
+    return `${map.day} ${map.month}, ${map.hour}:${map.minute}`;
+  } catch {
+    return "Unknown";
+  }
+}

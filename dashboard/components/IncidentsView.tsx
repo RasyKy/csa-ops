@@ -1,41 +1,49 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AnalystVerdict, aiVerdictLabel } from "@/components/case/AnalystVerdict";
+import { DisagreementMarker } from "@/components/case/DisagreementMarker";
 import { Filters } from "@/components/Filters";
+import { RefreshIndicator } from "@/components/RefreshIndicator";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TriageBadge } from "@/components/TriageBadge";
 import { humanizeScenario } from "@/lib/incidentDisplay";
+import { incidentListTitle, incidentMeta } from "@/lib/incidentListTitle";
 import {
   assigneeFilterMatches,
   effectiveCase,
+  isUnresolved,
   matchesStatusFilter,
   normalizeStatus,
   parseStatusFilter,
+  verdictRelation,
+  type NormalizedStatus,
   type StatusFilter,
 } from "@/lib/caseJoin";
+import { handleUnauthorized } from "@/lib/clientCache";
 import { nextDelay } from "@/lib/pollBackoff";
-import { describeResponseAction } from "@/lib/responseWording";
-import { formatDateTime, formatUtc, tzLabel } from "@/lib/time";
+import { shareStructure } from "@/lib/swrCache";
+import { formatDateTime, formatShortDateTime, formatUtc, tzLabel } from "@/lib/time";
 import type { CaseSummary, IncidentListItem, Severity } from "@/lib/types";
+import { useAlertTitles } from "@/lib/useAlertTitles";
+import { useSwrState } from "@/lib/useSwrState";
 
 const POLL_BASE_MS = 3000;
 const POLL_MAX_MS = 30000;
 
-type SortColumn =
-  | "severity"
-  | "host"
-  | "user"
-  | "scenario"
-  | "alerts"
-  | "raised"
-  | "triage"
-  | "status"
-  | "assignee"
-  | "last_action";
+type SortColumn = "severity" | "incident" | "raised" | "status" | "assignee";
+// "queue" is the default order: unresolved first, resolved last, newest first in each group.
+type SortState = SortColumn | "queue";
 type SortDirection = "asc" | "desc";
+
+const SORT_COLUMNS: readonly SortColumn[] = ["severity", "incident", "raised", "status", "assignee"];
+
+function parseSort(raw: string | null): SortState {
+  return raw !== null && (SORT_COLUMNS as readonly string[]).includes(raw) ? (raw as SortColumn) : "queue";
+}
 
 const SEVERITY_WEIGHT: Record<Severity, number> = {
   critical: 4,
@@ -43,6 +51,181 @@ const SEVERITY_WEIGHT: Record<Severity, number> = {
   medium: 2,
   low: 1,
 };
+
+const TH_BASE =
+  "group/col cursor-pointer select-none py-1.5 pr-3 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors";
+
+const raisedMs = (incident: IncidentListItem) => Date.parse(incident.incident_raised_time) || 0;
+
+const EMPTY_INCIDENTS: IncidentListItem[] = [];
+
+// Everything one row or card needs, as values that compare cheaply, so a refresh that
+// changes one incident re-renders only that row and one that changes nothing renders none.
+interface RowProps {
+  incident: IncidentListItem;
+  title: string;
+  meta: string;
+  status: NormalizedStatus;
+  assignee: string | null;
+  analystVerdict: string | null;
+  onOpen: (e: React.MouseEvent, incidentId: string) => void;
+  onAux: (e: React.MouseEvent, incidentId: string) => void;
+  onKey: (e: React.KeyboardEvent, incidentId: string) => void;
+}
+
+// The Triage cell. A resolved incident leads with the analyst's verdict; the AI's
+// verdict shows on a second line only when it adds something (it differs, or it was
+// uncertain, or the analyst could not decide). Unresolved incidents show the AI pill.
+function TriageCell({ incident, analystVerdict }: { incident: IncidentListItem; analystVerdict: string | null }) {
+  if (!analystVerdict) {
+    return <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} showSourceTag />;
+  }
+  // a failed triage has no verdict to compare with
+  const aiVerdict = incident.triage_status === "failed" ? null : incident.triage_verdict ?? null;
+  const relation = verdictRelation(aiVerdict, analystVerdict);
+  const aiSaid =
+    aiVerdict && (relation === "disagree" || relation === "ai_uncertain" || relation === "analyst_undetermined")
+      ? `AI said ${aiVerdictLabel(aiVerdict).toLowerCase()}`
+      : null;
+  return (
+    <>
+      <AnalystVerdict verdict={analystVerdict} variant="pill" aiVerdict={aiVerdict} />
+      {aiSaid && (
+        <span className="flex max-w-full items-center gap-1.5 text-xs text-ink-muted" data-testid="triage-ai-said">
+          {relation === "disagree" && <DisagreementMarker aiVerdict={aiVerdict} analystVerdict={analystVerdict} />}
+          <span className="truncate" title={aiSaid}>
+            {aiSaid}
+          </span>
+        </span>
+      )}
+    </>
+  );
+}
+
+const IncidentRow = memo(function IncidentRow({
+  incident,
+  title,
+  meta,
+  status,
+  assignee,
+  analystVerdict,
+  onOpen,
+  onAux,
+  onKey,
+}: RowProps) {
+  return (
+    <tr
+      data-incident-id={incident.incident_id}
+      onClick={(e) => onOpen(e, incident.incident_id)}
+      onAuxClick={(e) => onAux(e, incident.incident_id)}
+      tabIndex={0}
+      onKeyDown={(e) => onKey(e, incident.incident_id)}
+      className="group h-[52px] cursor-pointer border-b border-zinc-100 transition-all duration-150 ease-out hover:bg-zinc-100/70 hover:shadow-sm dark:border-zinc-900 dark:hover:bg-zinc-800/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600"
+    >
+      <td className="whitespace-nowrap py-1 pr-3 pl-2 align-middle border-l-2 border-transparent transition-colors group-hover:border-l-zinc-500 dark:group-hover:border-l-zinc-400">
+        <SeverityBadge severity={incident.severity} />
+      </td>
+      <td className="w-full max-w-0 py-1 pr-3 align-middle" data-testid="cell-incident">
+        <div className="truncate text-sm font-medium text-ink" title={title} data-testid="cell-incident-title">
+          {title}
+        </div>
+        <div className="truncate text-xs text-ink-muted" title={meta} data-testid="cell-incident-meta">
+          {meta}
+        </div>
+      </td>
+      <td
+        className="whitespace-nowrap py-1 pr-3 text-right align-middle text-xs text-ink-muted"
+        title={`${formatDateTime(incident.incident_raised_time)} ${tzLabel()} (${formatUtc(incident.incident_raised_time)})`}
+        data-testid="cell-raised"
+      >
+        {formatShortDateTime(incident.incident_raised_time)}
+      </td>
+      <td className="whitespace-nowrap py-1 pr-3 align-middle" data-testid="cell-triage">
+        <div className="flex flex-col items-start justify-center gap-0.5">
+          <TriageCell incident={incident} analystVerdict={analystVerdict} />
+        </div>
+      </td>
+      <td className="whitespace-nowrap py-1 pr-3 align-middle" data-testid="cell-status">
+        <StatusBadge status={status} />
+      </td>
+      <td className="whitespace-nowrap py-1 pr-3 align-middle" data-testid="cell-assignee">
+        {assignee ? (
+          <span className="text-zinc-600 dark:text-zinc-400">{assignee}</span>
+        ) : (
+          <span className="text-ink-subtle">Unassigned</span>
+        )}
+      </td>
+      <td className="py-1 pr-2 text-right align-middle">
+        <span
+          aria-hidden="true"
+          className="inline-block text-zinc-400 transition-all duration-150 ease-out group-hover:translate-x-1 group-hover:text-zinc-700 dark:text-zinc-500 dark:group-hover:text-zinc-300"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </span>
+      </td>
+    </tr>
+  );
+});
+
+const IncidentCard = memo(function IncidentCard({
+  incident,
+  title,
+  meta,
+  status,
+  assignee,
+  analystVerdict,
+  onOpen,
+  onAux,
+  onKey,
+}: RowProps) {
+  return (
+    <div
+      data-incident-id={incident.incident_id}
+      onClick={(e) => onOpen(e, incident.incident_id)}
+      onAuxClick={(e) => onAux(e, incident.incident_id)}
+      tabIndex={0}
+      onKeyDown={(e) => onKey(e, incident.incident_id)}
+      className="group min-w-0 cursor-pointer rounded-lg border border-zinc-200 border-l-4 border-l-transparent bg-white p-3.5 shadow-sm transition-all duration-150 ease-out hover:border-zinc-300 hover:border-l-zinc-500 hover:bg-zinc-50 hover:shadow dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:border-l-zinc-400 dark:hover:bg-zinc-800/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <SeverityBadge severity={incident.severity} />
+          <StatusBadge status={status} />
+        </div>
+        <span
+          aria-hidden="true"
+          className="text-zinc-400 transition-all duration-150 ease-out group-hover:translate-x-1 group-hover:text-zinc-700 dark:text-zinc-500 dark:group-hover:text-zinc-300"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </span>
+      </div>
+
+      <div className="truncate text-sm font-semibold text-ink" title={title} data-testid="card-incident-title">
+        {title}
+      </div>
+      <div className="mb-2 truncate text-xs text-ink-muted" title={meta} data-testid="card-incident-meta">
+        {meta}
+      </div>
+
+      <div className="mb-2 flex flex-col items-start gap-1">
+        <TriageCell incident={incident} analystVerdict={analystVerdict} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs text-ink-muted dark:border-zinc-800/80">
+        <span className="whitespace-nowrap" title={formatUtc(incident.incident_raised_time)} data-testid="card-raised">
+          {formatShortDateTime(incident.incident_raised_time)}
+        </span>
+        <span className="text-ink-subtle" data-testid="card-assignee">
+          {assignee ?? "Unassigned"}
+        </span>
+      </div>
+    </div>
+  );
+});
 
 export function IncidentsView() {
   const router = useRouter();
@@ -60,20 +243,48 @@ export function IncidentsView() {
   // Case status filter. A legacy ?status=open link now means Open exactly.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(parseStatusFilter(searchParams.get("status")));
   const [assigneeFilter, setAssigneeFilter] = useState(searchParams.get("assignee") || "all");
-  const [sortColumn, setSortColumn] = useState<SortColumn>(
-    (searchParams.get("sort") as SortColumn) ?? "raised"
-  );
+  const [sortColumn, setSortColumn] = useState<SortState>(parseSort(searchParams.get("sort")));
   const [sortDirection, setSortDirection] = useState<SortDirection>(
-    (searchParams.get("order") as SortDirection) ?? "desc"
+    searchParams.get("order") === "asc" ? "asc" : "desc"
   );
 
-  const [incidents, setIncidents] = useState<IncidentListItem[]>([]);
+  // The list, the case summaries and the alert titles are cached: a revisit renders
+  // the last data at once and refreshes it in the background. A filter with no cached
+  // answer yet keeps showing the list that was on screen until its own answer arrives.
+  const incidentsKey = severity ? `incidents:list:severity=${severity}` : "incidents:list";
+  const shownIncidents = useRef<IncidentListItem[]>(EMPTY_INCIDENTS);
+  const {
+    data: freshIncidents,
+    setData: setIncidents,
+    fetchedAt,
+    refreshing,
+    setRefreshing,
+  } = useSwrState<IncidentListItem[]>(incidentsKey, shownIncidents.current);
+  shownIncidents.current = freshIncidents;
   const [error, setError] = useState<string | null>(null);
   // Case summaries joined onto the list. A failed case request keeps the last
   // known data (or none, which reads as every incident Open) without an error banner.
-  const [cases, setCases] = useState<CaseSummary[] | null>(null);
+  const { data: cases, setData: setCases } = useSwrState<CaseSummary[] | null>("cases:list", null);
   const [casesUnavailable, setCasesUnavailable] = useState(false);
+
+  // Each incident keeps the very same object for as long as it is unchanged, even when
+  // a new incident shifts the others' positions, so its row has nothing to re-render.
+  const stableById = useRef(new Map<string, IncidentListItem>());
+  const incidents = useMemo(() => {
+    const previous = stableById.current;
+    const current = new Map<string, IncidentListItem>();
+    const list = freshIncidents.map((incident) => {
+      const before = previous.get(incident.incident_id);
+      const kept = before ? shareStructure(before, incident) : incident;
+      current.set(incident.incident_id, kept);
+      return kept;
+    });
+    stableById.current = current;
+    return list;
+  }, [freshIncidents]);
   const [assigneeNames, setAssigneeNames] = useState<string[]>([]);
+  // Rule titles of the alerts, to name incidents that have no matched scenario.
+  const alertTitles = useAlertTitles();
 
   // Guard against double-fire navigation when pressing Enter/Space or clicking
   const isNavigatingRef = useRef(false);
@@ -86,8 +297,10 @@ export function IncidentsView() {
     if (technique) params.set("technique", technique);
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (assigneeFilter !== "all") params.set("assignee", assigneeFilter);
-    if (sortColumn !== "raised") params.set("sort", sortColumn);
-    if (sortDirection !== "desc") params.set("order", sortDirection);
+    if (sortColumn !== "queue") {
+      params.set("sort", sortColumn);
+      if (sortDirection === "asc") params.set("order", "asc");
+    }
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }, [severity, search, technique, statusFilter, assigneeFilter, sortColumn, sortDirection, pathname, router]);
@@ -98,12 +311,18 @@ export function IncidentsView() {
     async (isCancelled: () => boolean, signal: AbortSignal): Promise<boolean> => {
       const params = new URLSearchParams();
       if (severity) params.set("severity", severity);
+      setRefreshing(true);
 
       try {
         const [res, casesRes] = await Promise.all([
           fetch(`/api/incidents?${params.toString()}`, { signal }),
           fetch("/api/cases", { signal, cache: "no-store" }).catch(() => null),
         ]);
+        // A 401 means the session is gone: forget the cache and go to sign-in.
+        if (res.status === 401 || casesRes?.status === 401) {
+          if (!isCancelled()) handleUnauthorized();
+          return false;
+        }
         if (!res.ok) throw new Error(`status ${res.status}`);
         const body = await res.json();
         let caseList: CaseSummary[] | null = null;
@@ -129,9 +348,12 @@ export function IncidentsView() {
         if (isCancelled()) return false;
         setError("Could not reach the backend.");
         return false;
+      } finally {
+        // a superseded run must not clear the flag of the run that replaced it
+        if (!isCancelled()) setRefreshing(false);
       }
     },
-    [severity]
+    [severity, setIncidents, setCases, setRefreshing]
   );
 
   useEffect(() => {
@@ -213,6 +435,15 @@ export function IncidentsView() {
     [caseById]
   );
 
+  // The title shown for each incident (its scenario, else the earliest alert's rule
+  // title, else its technique), looked up once per data change.
+  const titleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const inc of incidents) map.set(inc.incident_id, incidentListTitle(inc, alertTitles));
+    return map;
+  }, [incidents, alertTitles]);
+  const titleOf = useCallback((incidentId: string) => titleById.get(incidentId) ?? "Incident", [titleById]);
+
   // Dynamically extract distinct techniques and tactics from current incidents
   const allTechniquesAndTactics = useMemo(() => {
     const set = new Set<string>();
@@ -230,7 +461,7 @@ export function IncidentsView() {
   // Filtering:
   // 1. Status and assignee filters use the real case data (lib/caseJoin.ts); an
   //    incident with no stored case is Open and unassigned.
-  // 2. Search matches host, user, OR scenario.
+  // 2. Search matches host, user, the raw scenario, or the title shown in the list.
   // 3. Technique / tactic matches techniques or tactics arrays.
   const filteredIncidents = useMemo(() => {
     let list = incidents;
@@ -248,6 +479,7 @@ export function IncidentsView() {
         (inc) =>
           (inc.host && inc.host.toLowerCase().includes(q)) ||
           (inc.user && inc.user.toLowerCase().includes(q)) ||
+          titleOf(inc.incident_id).toLowerCase().includes(q) ||
           (inc.matched_scenario &&
             (inc.matched_scenario.toLowerCase().includes(q) ||
               humanizeScenario(inc.matched_scenario).toLowerCase().includes(q)))
@@ -263,34 +495,31 @@ export function IncidentsView() {
     }
 
     return list;
-  }, [incidents, statusFilter, assigneeFilter, caseOf, search, technique]);
+  }, [incidents, statusFilter, assigneeFilter, caseOf, search, technique, titleOf]);
 
-  // Sorting
+  // Sorting. The default "queue" order puts unresolved incidents first and resolved
+  // ones last, newest first within each group.
   const sortedIncidents = useMemo(() => {
-    return [...filteredIncidents].sort((a, b) => {
+    const list = [...filteredIncidents];
+    if (sortColumn === "queue") {
+      return list.sort((a, b) => {
+        const unresolvedA = isUnresolved(caseOf(a.incident_id).status) ? 0 : 1;
+        const unresolvedB = isUnresolved(caseOf(b.incident_id).status) ? 0 : 1;
+        return unresolvedA - unresolvedB || raisedMs(b) - raisedMs(a);
+      });
+    }
+    return list.sort((a, b) => {
       let diff = 0;
       switch (sortColumn) {
         case "severity":
           diff = (SEVERITY_WEIGHT[a.severity] ?? 0) - (SEVERITY_WEIGHT[b.severity] ?? 0);
           break;
-        case "host":
-          diff = (a.host || "").localeCompare(b.host || "");
-          break;
-        case "user":
-          diff = (a.user || "").localeCompare(b.user || "");
-          break;
-        case "scenario":
-          diff = (a.matched_scenario || "").localeCompare(b.matched_scenario || "");
-          break;
-        case "alerts":
-          diff = (a.alert_ids?.length ?? 0) - (b.alert_ids?.length ?? 0);
+        case "incident":
+          diff = titleOf(a.incident_id).localeCompare(titleOf(b.incident_id));
           break;
         case "raised":
           // the real timestamp, not the text
-          diff = (Date.parse(a.incident_raised_time) || 0) - (Date.parse(b.incident_raised_time) || 0);
-          break;
-        case "triage":
-          diff = (a.triage_verdict || "").localeCompare(b.triage_verdict || "");
+          diff = raisedMs(a) - raisedMs(b);
           break;
         case "status": {
           const weight = { open: 0, investigating: 1, resolved: 2 };
@@ -302,20 +531,10 @@ export function IncidentsView() {
         case "assignee":
           diff = (caseOf(a.incident_id).assignee || "").localeCompare(caseOf(b.incident_id).assignee || "");
           break;
-        case "last_action": {
-          const actA = a.last_response_action
-            ? describeResponseAction(a.last_response_action)
-            : "";
-          const actB = b.last_response_action
-            ? describeResponseAction(b.last_response_action)
-            : "";
-          diff = actA.localeCompare(actB);
-          break;
-        }
       }
       return sortDirection === "asc" ? diff : -diff;
     });
-  }, [filteredIncidents, sortColumn, sortDirection, caseOf]);
+  }, [filteredIncidents, sortColumn, sortDirection, caseOf, titleOf]);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -326,46 +545,65 @@ export function IncidentsView() {
     }
   };
 
-  const navigateToIncident = (incidentId: string, openInNewTab = false) => {
-    if (openInNewTab) {
-      window.open(`/incidents/${incidentId}`, "_blank");
-      return;
-    }
-    if (isNavigatingRef.current) return;
-    isNavigatingRef.current = true;
-    router.push(`/incidents/${incidentId}`);
-    setTimeout(() => {
-      isNavigatingRef.current = false;
-    }, 400);
+  const restoreQueueOrder = () => {
+    setSortColumn("queue");
+    setSortDirection("desc");
   };
 
-  const handleRowClick = (e: React.MouseEvent, incidentId: string) => {
-    const target = e.target as HTMLElement;
-    if (target.closest("a") || target.closest("button")) return;
+  // These handlers keep their identity between renders, so a memoized row only
+  // re-renders when its own data changes.
+  const navigateToIncident = useCallback(
+    (incidentId: string, openInNewTab = false) => {
+      if (openInNewTab) {
+        window.open(`/incidents/${incidentId}`, "_blank");
+        return;
+      }
+      if (isNavigatingRef.current) return;
+      isNavigatingRef.current = true;
+      router.push(`/incidents/${incidentId}`);
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 400);
+    },
+    [router]
+  );
 
-    if (e.metaKey || e.ctrlKey) {
-      navigateToIncident(incidentId, true);
-    } else {
-      navigateToIncident(incidentId);
-    }
-  };
+  const handleRowClick = useCallback(
+    (e: React.MouseEvent, incidentId: string) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("a") || target.closest("button")) return;
 
-  const handleRowAuxClick = (e: React.MouseEvent, incidentId: string) => {
-    const target = e.target as HTMLElement;
-    if (target.closest("a") || target.closest("button")) return;
+      if (e.metaKey || e.ctrlKey) {
+        navigateToIncident(incidentId, true);
+      } else {
+        navigateToIncident(incidentId);
+      }
+    },
+    [navigateToIncident]
+  );
 
-    if (e.button === 1) {
-      navigateToIncident(incidentId, true);
-    }
-  };
+  const handleRowAuxClick = useCallback(
+    (e: React.MouseEvent, incidentId: string) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("a") || target.closest("button")) return;
 
-  const handleKeyDown = (e: React.KeyboardEvent, incidentId: string) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      e.stopPropagation();
-      navigateToIncident(incidentId);
-    }
-  };
+      if (e.button === 1) {
+        navigateToIncident(incidentId, true);
+      }
+    },
+    [navigateToIncident]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, incidentId: string) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateToIncident(incidentId);
+      }
+    },
+    [navigateToIncident]
+  );
 
   const renderSortIndicator = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -383,6 +621,29 @@ export function IncidentsView() {
         ⇅
       </span>
     );
+  };
+
+  // The analyst's verdict for an incident, only once its case is resolved.
+  const analystVerdictOf = (incidentId: string): string | null => {
+    const c = caseOf(incidentId);
+    return normalizeStatus(c.status) === "resolved" && c.verdict ? c.verdict : null;
+  };
+
+  // What each memoized row or card is given: plain values, so an unchanged incident
+  // compares equal and skips its render.
+  const rowPropsOf = (incident: IncidentListItem): RowProps => {
+    const caseInfo = caseOf(incident.incident_id);
+    return {
+      incident,
+      title: titleOf(incident.incident_id),
+      meta: incidentMeta(incident.host, incident.user, incident.alert_ids?.length ?? 0),
+      status: normalizeStatus(caseInfo.status),
+      assignee: caseInfo.assignee ?? null,
+      analystVerdict: analystVerdictOf(incident.incident_id),
+      onOpen: handleRowClick,
+      onAux: handleRowAuxClick,
+      onKey: handleKeyDown,
+    };
   };
 
   return (
@@ -403,203 +664,100 @@ export function IncidentsView() {
       />
 
       {/* Showing N of M incidents count header */}
-      <div className="mb-3 flex items-center justify-between text-xs font-medium text-zinc-500 dark:text-zinc-400">
-        <span>
-          Showing {sortedIncidents.length} of {incidents.length} incidents
-        </span>
-        {casesUnavailable && (
-          <span className="font-normal text-ink-subtle" data-testid="cases-unavailable">
-            Case data unavailable
+      <div className="mb-3 flex items-center justify-between gap-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        <div className="flex min-w-0 items-center gap-3">
+          <span>
+            Showing {sortedIncidents.length} of {incidents.length} incidents
           </span>
-        )}
+          {sortColumn === "queue" ? (
+            <span className="font-normal text-ink-subtle" data-testid="queue-note">
+              Unresolved first, then newest
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={restoreQueueOrder}
+              data-testid="queue-order-button"
+              className="rounded font-normal text-ink-muted underline underline-offset-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Queue order
+            </button>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+          <RefreshIndicator
+            className="flex-1 text-right font-normal"
+            refreshing={refreshing}
+            fetchedAt={fetchedAt}
+            failed={error !== null}
+            pollMs={POLL_BASE_MS}
+          />
+          {casesUnavailable && (
+            <span className="shrink-0 font-normal text-ink-subtle" data-testid="cases-unavailable">
+              Case data unavailable
+            </span>
+          )}
+        </div>
       </div>
 
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {/* With data on screen a failed refresh is only the quiet note beside the count. */}
+      {error && fetchedAt === null && <p className="mb-2 text-sm text-red-600">{error}</p>}
 
-      {/* DESKTOP TABLE VIEW (>= 768px) */}
-      <div className="hidden md:block overflow-x-auto">
+      {/* DESKTOP TABLE VIEW (>= 768px). The bottom padding leaves room for a tooltip
+          under the last row. */}
+      <div className="hidden md:block overflow-x-auto pb-14" data-testid="incidents-table-container">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-zinc-500 dark:border-zinc-800">
-              <th
-                onClick={() => handleSort("severity")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
+              <th onClick={() => handleSort("severity")} className={TH_BASE}>
                 <div className="flex items-center">
                   <span>Severity</span>
                   {renderSortIndicator("severity")}
                 </div>
               </th>
-              <th
-                onClick={() => handleSort("host")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
+              <th onClick={() => handleSort("incident")} className={`${TH_BASE} w-full`}>
                 <div className="flex items-center">
-                  <span>Host</span>
-                  {renderSortIndicator("host")}
-                </div>
-              </th>
-              <th
-                onClick={() => handleSort("user")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
-                <div className="flex items-center">
-                  <span>User</span>
-                  {renderSortIndicator("user")}
-                </div>
-              </th>
-              <th
-                onClick={() => handleSort("scenario")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
-                <div className="flex items-center">
-                  <span>Scenario</span>
-                  {renderSortIndicator("scenario")}
-                </div>
-              </th>
-              <th
-                onClick={() => handleSort("alerts")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 text-right font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
-                <div className="flex items-center justify-end">
-                  <span>Alerts</span>
-                  {renderSortIndicator("alerts")}
+                  <span>Incident</span>
+                  {renderSortIndicator("incident")}
                 </div>
               </th>
               <th
                 title={`Times are shown in ${tzLabel()}`}
                 onClick={() => handleSort("raised")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 text-right font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                className={`${TH_BASE} text-right`}
               >
                 <div className="flex items-center justify-end">
                   <span>Raised</span>
                   {renderSortIndicator("raised")}
                 </div>
               </th>
-              <th
-                onClick={() => handleSort("triage")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
+              <th className="py-1.5 pr-3 font-semibold text-zinc-600 dark:text-zinc-400">
                 <div className="flex items-center">
                   <span>Triage</span>
-                  {renderSortIndicator("triage")}
                 </div>
               </th>
-              <th
-                onClick={() => handleSort("status")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
+              <th onClick={() => handleSort("status")} className={TH_BASE}>
                 <div className="flex items-center">
                   <span>Status</span>
                   {renderSortIndicator("status")}
                 </div>
               </th>
-              <th
-                onClick={() => handleSort("assignee")}
-                className="group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
+              <th onClick={() => handleSort("assignee")} className={TH_BASE}>
                 <div className="flex items-center">
                   <span>Assignee</span>
                   {renderSortIndicator("assignee")}
-                </div>
-              </th>
-              <th
-                onClick={() => handleSort("last_action")}
-                className="hidden xl:table-cell group/col cursor-pointer select-none py-1.5 pr-4 font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
-                <div className="flex items-center">
-                  <span>Last action</span>
-                  {renderSortIndicator("last_action")}
                 </div>
               </th>
               <th className="py-1.5 pr-2 text-right" aria-label="Open incident" />
             </tr>
           </thead>
           <tbody>
-            {sortedIncidents.map((incident) => {
-              const fullAction = incident.last_response_action
-                ? describeResponseAction(incident.last_response_action)
-                : "None yet";
-              const caseInfo = caseOf(incident.incident_id);
-              return (
-                <tr
-                  key={incident.incident_id}
-                  data-incident-id={incident.incident_id}
-                  onClick={(e) => handleRowClick(e, incident.incident_id)}
-                  onAuxClick={(e) => handleRowAuxClick(e, incident.incident_id)}
-                  tabIndex={0}
-                  onKeyDown={(e) => handleKeyDown(e, incident.incident_id)}
-                  className="group cursor-pointer border-b border-zinc-100 transition-all duration-150 ease-out hover:bg-zinc-100/70 hover:shadow-sm dark:border-zinc-900 dark:hover:bg-zinc-800/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600"
-                >
-                  <td className="py-2 pr-4 pl-2 border-l-2 border-transparent transition-colors group-hover:border-l-zinc-500 dark:group-hover:border-l-zinc-400">
-                    <SeverityBadge severity={incident.severity} />
-                  </td>
-                  <td className="py-2 pr-4 font-medium text-zinc-900 dark:text-zinc-100">
-                    {incident.host}
-                  </td>
-                  <td className="py-2 pr-4 text-zinc-600 dark:text-zinc-400">
-                    {incident.user}
-                  </td>
-                  <td
-                    className="whitespace-nowrap py-2 pr-4 text-xs text-zinc-600 dark:text-zinc-400"
-                    title={incident.matched_scenario ?? undefined}
-                  >
-                    {incident.matched_scenario ? humanizeScenario(incident.matched_scenario) : "—"}
-                  </td>
-                  <td className="py-2 pr-4 text-right">
-                    <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                      {incident.alert_ids?.length ?? 0}
-                    </span>
-                  </td>
-                  <td
-                    className="py-2 pr-4 text-right text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap"
-                    title={formatUtc(incident.incident_raised_time)}
-                  >
-                    {formatDateTime(incident.incident_raised_time)}
-                  </td>
-                  <td className="whitespace-nowrap py-2 pr-4">
-                    <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} className="-my-0.5" />
-                  </td>
-                  <td className="py-2 pr-4" data-testid="cell-status">
-                    <StatusBadge status={normalizeStatus(caseInfo.status)} />
-                  </td>
-                  <td className="py-2 pr-4" data-testid="cell-assignee">
-                    {caseInfo.assignee ? (
-                      <span className="text-zinc-600 dark:text-zinc-400">{caseInfo.assignee}</span>
-                    ) : (
-                      <span className="text-ink-subtle">Unassigned</span>
-                    )}
-                  </td>
-                  <td className="hidden py-2 pr-4 max-w-[200px] xl:table-cell">
-                    <span
-                      className="block truncate text-zinc-600 dark:text-zinc-400"
-                      title={fullAction}
-                    >
-                      {fullAction}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-2 text-right">
-                    <span
-                      aria-hidden="true"
-                      className="inline-block text-zinc-400 transition-all duration-150 ease-out group-hover:translate-x-1 group-hover:text-zinc-700 dark:text-zinc-500 dark:group-hover:text-zinc-300"
-                    >
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
+            {sortedIncidents.map((incident) => (
+              <IncidentRow key={incident.incident_id} {...rowPropsOf(incident)} />
+            ))}
             {sortedIncidents.length === 0 && !error && (
               <tr>
-                <td colSpan={11} className="py-8 text-center text-zinc-500">
+                <td colSpan={7} className="py-8 text-center text-zinc-500">
                   No incidents match the selected filters.
                 </td>
               </tr>
@@ -610,75 +768,9 @@ export function IncidentsView() {
 
       {/* MOBILE STACKED CARDS (< 768px) */}
       <div className="flex flex-col gap-3 md:hidden">
-        {sortedIncidents.map((incident) => {
-          const fullAction = incident.last_response_action
-            ? describeResponseAction(incident.last_response_action)
-            : "None yet";
-          const caseInfo = caseOf(incident.incident_id);
-          return (
-            <div
-              key={incident.incident_id}
-              onClick={(e) => handleRowClick(e, incident.incident_id)}
-              onAuxClick={(e) => handleRowAuxClick(e, incident.incident_id)}
-              tabIndex={0}
-              onKeyDown={(e) => handleKeyDown(e, incident.incident_id)}
-              className="group cursor-pointer rounded-lg border border-zinc-200 border-l-4 border-l-transparent bg-white p-3.5 shadow-sm transition-all duration-150 ease-out hover:border-zinc-300 hover:border-l-zinc-500 hover:bg-zinc-50 hover:shadow dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:border-l-zinc-400 dark:hover:bg-zinc-800/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
-            >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <SeverityBadge severity={incident.severity} />
-                  <TriageBadge verdict={incident.triage_verdict} status={incident.triage_status} />
-                  <StatusBadge status={normalizeStatus(caseInfo.status)} />
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="text-zinc-400 transition-all duration-150 ease-out group-hover:translate-x-1 group-hover:text-zinc-700 dark:text-zinc-500 dark:group-hover:text-zinc-300"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </span>
-              </div>
-
-              <div className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                {incident.host} <span className="font-normal text-zinc-400 dark:text-zinc-500">•</span>{" "}
-                {incident.user}
-              </div>
-              <div className="mb-1 text-xs text-ink-subtle">Assignee: {caseInfo.assignee ?? "Unassigned"}</div>
-
-              <div
-                className="mb-2 text-xs text-zinc-600 dark:text-zinc-400"
-                title={incident.matched_scenario ?? undefined}
-              >
-                {incident.matched_scenario ? humanizeScenario(incident.matched_scenario) : "—"}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-500 dark:border-zinc-800/80 dark:text-zinc-400">
-                <span className="whitespace-nowrap" title={formatUtc(incident.incident_raised_time)}>
-                  {formatDateTime(incident.incident_raised_time)}
-                </span>
-                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                  {incident.alert_ids?.length ?? 0} alert
-                  {(incident.alert_ids?.length ?? 0) === 1 ? "" : "s"}
-                </span>
-              </div>
-
-              <div
-                className="mt-2 text-xs text-zinc-500 dark:text-zinc-400 truncate"
-                title={fullAction}
-              >
-                <span className="font-medium text-zinc-600 dark:text-zinc-400">Action:</span>{" "}
-                {fullAction}
-              </div>
-            </div>
-          );
-        })}
+        {sortedIncidents.map((incident) => (
+          <IncidentCard key={incident.incident_id} {...rowPropsOf(incident)} />
+        ))}
         {sortedIncidents.length === 0 && !error && (
           <div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
             No incidents match the selected filters.

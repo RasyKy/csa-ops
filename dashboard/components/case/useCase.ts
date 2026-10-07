@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ACTOR_STORAGE_KEY, sanitizeActorName } from "@/lib/actorName";
+import { clientCache, handleUnauthorized } from "@/lib/clientCache";
 import { nextDelay } from "@/lib/pollBackoff";
-import type { Case, CaseStatus, Verdict } from "@/lib/types";
+import type { Case, CaseStatus, CaseSummary, Verdict } from "@/lib/types";
 
 const POLL_BASE_MS = 15_000;
 const POLL_MAX_MS = 60_000;
@@ -49,6 +50,45 @@ export interface UseCase {
   reopen: () => Promise<MutationResult>;
 }
 
+const OVERVIEW_RANGES = ["24h", "7d", "30d", "all"] as const;
+
+function summaryOf(c: Case): CaseSummary {
+  return {
+    incident_id: c.incident_id,
+    status: c.status,
+    assignee: c.assignee,
+    verdict: c.verdict,
+    updated_time: c.updated_time,
+    resolved_time: c.resolved_time,
+    version: c.version,
+  };
+}
+
+// The summary of this incident replaced, or one added when the incident had none.
+function withSummary(list: CaseSummary[], c: Case): CaseSummary[] {
+  const summary = summaryOf(c);
+  const index = list.findIndex((item) => item && item.incident_id === c.incident_id);
+  if (index === -1) return [...list, summary];
+  const next = list.slice();
+  next[index] = summary;
+  return next;
+}
+
+// After a change that was saved (or a conflict that returned the current case), the
+// lists that were cached before it show the new status and assignee at once, so the
+// next visit to a list does not flash the old values. Lists that were never cached
+// are left alone: they simply load.
+function patchCaseLists(c: Case): void {
+  clientCache.patch<CaseSummary[] | null>("cases:list", (list) => (Array.isArray(list) ? withSummary(list, c) : list));
+  for (const range of OVERVIEW_RANGES) {
+    clientCache.patch<unknown>(`overview:${range}`, (state) => {
+      const page = state as { cases?: unknown } | null;
+      if (!page || typeof page !== "object" || !Array.isArray(page.cases)) return state;
+      return { ...page, cases: withSummary(page.cases as CaseSummary[], c) };
+    });
+  }
+}
+
 function detailOf(body: unknown): string | undefined {
   if (typeof body === "object" && body !== null) {
     const d = (body as { detail?: unknown }).detail;
@@ -58,15 +98,18 @@ function detailOf(body: unknown): string | undefined {
 }
 
 export function useCase(incidentId: string): UseCase {
-  const [caseData, setCaseData] = useState<Case | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `case:${incidentId}`;
+  // A revisit starts from the cached case (no skeleton) and revalidates it.
+  const [cached] = useState<Case | null>(() => clientCache.get<Case>(cacheKey)?.data ?? null);
+  const [caseData, setCaseData] = useState<Case | null>(cached);
+  const [loading, setLoading] = useState(cached === null);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [pending, setPending] = useState(false);
 
   // Always the newest case the page has seen, so a mutation sends the right
   // expected_version even from a stale closure.
-  const latest = useRef<Case | null>(null);
+  const latest = useRef<Case | null>(cached);
   const mutating = useRef(false);
   const runNow = useRef<() => void>(() => {});
 
@@ -74,9 +117,11 @@ export function useCase(incidentId: string): UseCase {
     // Versions only go up, so a poll response that was slow cannot overwrite a
     // newer state this page already knows.
     if (latest.current && fresh.version < latest.current.version) return;
-    latest.current = fresh;
-    setCaseData(fresh);
-  }, []);
+    // stored with structural sharing: an unchanged case keeps its reference and renders nothing
+    const stored = clientCache.set(cacheKey, fresh);
+    latest.current = stored;
+    setCaseData(stored);
+  }, [cacheKey]);
 
   const url = `/api/incidents/${encodeURIComponent(incidentId)}/case`;
 
@@ -84,6 +129,11 @@ export function useCase(incidentId: string): UseCase {
     async (signal?: AbortSignal): Promise<boolean> => {
       try {
         const res = await fetch(url, { cache: "no-store", signal });
+        if (res.status === 401) {
+          // the session is gone: forget the cache and go to sign-in
+          if (!signal?.aborted) handleUnauthorized();
+          return false;
+        }
         if (!res.ok) throw new Error(`status ${res.status}`);
         const body = (await res.json()) as Case;
         if (signal?.aborted) return false;
@@ -176,8 +226,13 @@ export function useCase(incidentId: string): UseCase {
         } catch {
           json = null;
         }
+        if (res.status === 401) {
+          handleUnauthorized();
+          return { ok: false, status: 401, message: "Your session has ended." };
+        }
         if (res.ok) {
           accept(json as Case);
+          patchCaseLists(json as Case);
           setConflict(false);
           setError(null);
           return { ok: true, status: res.status };
@@ -185,8 +240,10 @@ export function useCase(incidentId: string): UseCase {
         if (res.status === 409 && typeof json === "object" && json !== null && "case" in json) {
           const current = (json as { case: Case }).case;
           // The server's copy wins even if its version looks older than ours.
-          latest.current = current;
-          setCaseData(current);
+          const stored = clientCache.set(cacheKey, current);
+          latest.current = stored;
+          setCaseData(stored);
+          patchCaseLists(current);
           setConflict(true);
           return { ok: false, status: 409, message: detailOf(json) };
         }
@@ -203,7 +260,7 @@ export function useCase(incidentId: string): UseCase {
         setPending(false);
       }
     },
-    [url, accept],
+    [url, accept, cacheKey],
   );
 
   const reload = useCallback(async () => {

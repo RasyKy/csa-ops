@@ -16,7 +16,7 @@ class Alert(BaseModel):
     user: str
     event_id: str
     pid: int
-    ppid: int
+    ppid: Optional[int] = None
     image: str
     command_line: Optional[str] = None
     false_positive: Optional[bool] = None

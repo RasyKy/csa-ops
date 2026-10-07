@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class ChainNode(BaseModel):
     event_id: str
     pid: int
-    ppid: int
+    ppid: Optional[int] = None
     image: str
     command_line: Optional[str] = None
     timestamp: str

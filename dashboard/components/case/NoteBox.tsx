@@ -41,9 +41,13 @@ export function NoteBox() {
       <label htmlFor={id} className="block text-sm font-medium text-ink">
         Add a note
       </label>
+      <p id={`${id}-help`} className="mt-0.5 text-xs text-ink-subtle" data-testid="note-help">
+        Notes while you investigate. Resolve the case to write the resolution note.
+      </p>
       <textarea
         ref={areaRef}
         id={id}
+        aria-describedby={`${id}-help`}
         rows={3}
         maxLength={NOTE_MAX}
         value={text}

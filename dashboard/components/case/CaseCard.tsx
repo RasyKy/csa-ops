@@ -4,13 +4,12 @@ import { Info } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { StatusBadge } from "@/components/StatusBadge";
-import { Badge } from "@/components/ui/Badge";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
 import { Time } from "@/components/ui/Time";
-import { verdictLabel } from "@/lib/caseDisplay";
 
+import { AnalystVerdict } from "./AnalystVerdict";
 import { useCaseContext } from "./CaseProvider";
 import { ResolveDialog } from "./ResolveDialog";
 import { readActorName, saveActorName } from "./useCase";
@@ -174,9 +173,7 @@ export function CaseCard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={caseData.status} data-testid="case-status" />
                   {caseData.status === "resolved" && caseData.verdict && (
-                    <Badge tone="neutral" data-testid="case-verdict">
-                      {verdictLabel(caseData.verdict)}
-                    </Badge>
+                    <AnalystVerdict verdict={caseData.verdict} variant="pill" labelTestId="case-verdict" />
                   )}
                 </div>
 

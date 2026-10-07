@@ -6,7 +6,13 @@ Benign simulation. Produces realistic telemetry without performing
 actual credential extraction. Run only on an isolated lab VM.
 
 Requires Administrator privileges (Stage 3 needs elevated access to lsass.exe).
-Requires stage1_trigger.docm (Stages 1+2 macro) to be present at DOCM_PATH.
+
+Stage 1+2 previously opened a macro-enabled .docm to trigger an
+Office-spawns-shell chain. That file is not checked in (and should not be --
+a real auto-executing macro dropper is a live payload, not a benign
+stand-in). Stage 1+2 now spawns the same shape of telemetry directly: a
+PowerShell child process launched from this script, matching the stand-in
+pattern already used in scenario 2's stage1_suspicious_process().
 """
 
 import subprocess
@@ -17,7 +23,6 @@ import sys
 from datetime import datetime
 
 LOG_PATH = r"C:\AttackSim\scenario1_timestamps.log"
-DOCM_PATH = r"C:\AttackSim\stage1trigger.docm"
 
 
 def log(message: str):
@@ -37,14 +42,16 @@ def is_admin() -> bool:
 
 
 def stage1_and_2():
-    """Opens the macro-enabled doc, which auto-fires Stage 1 (Office spawns
-    shell) and Stage 2 (PowerShell download+execute) via Document_Open.
-    This is the verified, working implementation -- do not replace with
-    COM automation without re-testing."""
+    """Benign stand-in for Office-spawns-shell (Stage 1) and the follow-on
+    PowerShell execution (Stage 2). Spawns a PowerShell child process
+    directly from this script -- same shape of telemetry (Sysmon Event ID 1,
+    parent/child process creation, T1204.002/T1059.001) as a macro's
+    Document_Open firing a shell would produce, with no real download or
+    execute. Mirrors scenario 2's stage1_suspicious_process()."""
     log("SCENARIO1_STAGE1_2_TRIGGER")
     ensure_word_closed()
-    os.startfile(DOCM_PATH)
-    time.sleep(10)  # allow Word to open, macro to fire, download to complete
+    subprocess.run(["powershell.exe", "-NoProfile", "-Command", "Write-Host 'scenario1 stage1+2 process running'"])
+    log("SCENARIO1_STAGE1_2_COMPLETE")
 
 
 def stage3_lsass_access():

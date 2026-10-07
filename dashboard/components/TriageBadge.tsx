@@ -1,4 +1,5 @@
 import React from "react";
+import { Tooltip } from "@/components/ui/Tooltip";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -58,6 +59,11 @@ export interface TriageBadgeProps extends React.HTMLAttributes<HTMLSpanElement> 
   prefix?: string;
   className?: string;
   "data-testid"?: string;
+  // Opt-in: an "AI" tag inside the pill, "AI verdict: <label>" as its title and
+  // aria-label, and a tooltip. Off, the output is exactly what it always was.
+  showSourceTag?: boolean;
+  confidence?: string | null;
+  tooltipAlign?: "center" | "end";
 }
 
 // `prefix` (e.g. "AI:") disambiguates this from case status wherever both
@@ -69,6 +75,9 @@ export function TriageBadge({
   prefix,
   className = "",
   "data-testid": testId,
+  showSourceTag = false,
+  confidence = null,
+  tooltipAlign = "center",
   ...props
 }: TriageBadgeProps) {
   let entry = TRIAGE_BADGE_STYLES.verdicts.pending;
@@ -88,6 +97,36 @@ export function TriageBadge({
   }
 
   const Icon = entry.icon;
+
+  if (showSourceTag) {
+    const tooltipText = `AI verdict${confidence ? `, ${confidence} confidence` : ""}. Advisory only: it never changes detections or response actions.`;
+    return (
+      <span className={`${TRIAGE_BADGE_STYLES.wrapper} ${className}`.trim()}>
+        {prefix && <span className={TRIAGE_BADGE_STYLES.prefix}>{prefix}</span>}
+        <Tooltip
+          side="bottom"
+          align={tooltipAlign}
+          content={<span className="block max-w-[240px] whitespace-normal">{tooltipText}</span>}
+        >
+          <span
+            data-testid={testId}
+            data-source-tag="ai"
+            title={`AI verdict: ${entry.label}`}
+            aria-label={`AI verdict: ${entry.label}`}
+            className={TRIAGE_BADGE_STYLES.container}
+            {...props}
+          >
+            <span className="text-[11px] font-medium text-ink-subtle" aria-hidden="true">
+              AI
+            </span>
+            <span className="h-3 border-l border-line-strong" aria-hidden="true" />
+            <Icon className={`${TRIAGE_BADGE_STYLES.iconSize} ${entry.iconColor}`} aria-hidden="true" />
+            <span>{entry.label}</span>
+          </span>
+        </Tooltip>
+      </span>
+    );
+  }
 
   return (
     <span className={`${TRIAGE_BADGE_STYLES.wrapper} ${className}`.trim()}>
